@@ -19,6 +19,7 @@ class RoundedWindow(QWidget):
             flags = Qt.Window | Qt.FramelessWindowHint | Qt.NoDropShadowWindowHint
         super().__init__(parent, flags)
         self.setAttribute(Qt.WA_TranslucentBackground)
+        self.setAttribute(Qt.WA_MacAlwaysShowToolWindow)
         self.colors = THEMES["light"]
         self.radius = radius
         self.drag_offset = None
@@ -87,7 +88,7 @@ class ContextPopup(RoundedWindow):
              lambda: app.set_preference("hour_cycle", 24 if preferences.hour_cycle == 12 else 12)),
             ("초 숨기기" if preferences.show_seconds else "초 표시",
              lambda: app.set_preference("show_seconds", not preferences.show_seconds)),
-            ("위치 초기화", app.reset_position), ("종료                             Ctrl+Q", app.close),
+            ("위치 초기화", app.reset_position), ("프로그램 정보…                 F1", app.show_about), ("종료                             Ctrl+Q", app.close),
         ]
         self.buttons = []
         for index, (text, callback) in enumerate(choices):
@@ -105,8 +106,9 @@ class ContextPopup(RoundedWindow):
         self.move(x, y)
         self.shortcuts = []
         for key, callback in (("Up", lambda: self.navigate(-1)), ("Down", lambda: self.navigate(1)),
-                              ("Return", self.activate), ("Escape", self.close)):
+                              ("Return", self.activate)):
             shortcut = QShortcut(QKeySequence(key), self)
+            shortcut.setContext(Qt.WindowShortcut)
             shortcut.activated.connect(callback)
             self.shortcuts.append(shortcut)
         self.show()

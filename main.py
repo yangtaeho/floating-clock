@@ -5,7 +5,7 @@ import sys
 from time import monotonic
 
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QFont, QFontMetrics, QKeySequence, QShortcut
+from PySide6.QtGui import QFont, QFontMetrics, QKeySequence, QShortcut, QIcon
 from PySide6.QtWidgets import QApplication, QLabel, QVBoxLayout, QHBoxLayout
 
 from clock_core import ClockPreferences, TopmostMode, format_clock, next_tick_ms, should_be_topmost
@@ -15,13 +15,16 @@ from ui_components import THEMES, RoundedWindow, ContextPopup, button
 from settings_panel import SettingsPanel
 from chime_core import HourlyChime
 from chime_audio import ChimeAudio
+from app_metadata import APP_NAME, VERSION, AUTHOR, ASSETS
+from about_panel import AboutPanel
+from tray_adapter import TrayAdapter
 
 
 class ClockWindow(RoundedWindow):
     def __init__(self, controller):
-        super().__init__()
+        super().__init__(flags=controller.utility_flags)
         self.controller = controller
-        self.setWindowTitle("Floating Clock")
+        self.setWindowTitle(APP_NAME)
 
     def contextMenuEvent(self, event):
         self.controller.popup(event.globalPos())
@@ -48,6 +51,11 @@ class ClockApp:
         self.status = ""
         self.popup_menu = None
         self.settings_panel = None
+        self.about_panel = None
+        self.tray_available = TrayAdapter.available()
+        self.utility_flags = (Qt.Tool if self.tray_available else Qt.Window) | Qt.FramelessWindowHint | Qt.NoDropShadowWindowHint
+        self.tray = None
+        QApplication.instance().setQuitOnLastWindowClosed(not self.tray_available)
         self.root = ClockWindow(self)
         self.chime = HourlyChime()
         self.chime_audio = ChimeAudio(self.root)
@@ -76,8 +84,9 @@ class ClockApp:
         layout.addWidget(self.status_label)
         self.shortcuts = []
         for key, callback in (("Ctrl+,", self.toggle_settings), ("Ctrl+Shift+S", self.toggle_settings),
-                              ("Meta+,", self.toggle_settings), ("Escape", self.escape), ("Ctrl+Q", self.close)):
+                              ("Meta+,", self.toggle_settings), ("F1", self.show_about), ("Escape", self.escape), ("Ctrl+Q", self.close)):
             shortcut = QShortcut(QKeySequence(key), self.root)
+            shortcut.setContext(Qt.ApplicationShortcut)
             shortcut.activated.connect(callback)
             self.shortcuts.append(shortcut)
         self.render_clock()
@@ -87,6 +96,8 @@ class ClockApp:
             self.root.move(x, y)
             self.clamp_position()
         self.root.show()
+        if self.tray_available:
+            self.tray = TrayAdapter(self)
         self.tick_timer = QTimer(self.root)
         self.tick_timer.setSingleShot(True)
         self.tick_timer.timeout.connect(self.tick)
@@ -156,9 +167,11 @@ class ClockApp:
     def apply_topmost(self, window, desired):
         result = self.chrome.set_topmost(int(window.winId()), desired)
         if result is None:  # Portable fallback, used only on a policy change.
+            visible = window.isVisible()
             window.setAttribute(Qt.WA_ShowWithoutActivating)
             window.setWindowFlag(Qt.WindowStaysOnTopHint, desired)
-            window.show()
+            if visible:
+                window.show()
             window.setAttribute(Qt.WA_ShowWithoutActivating, False)
         elif not result:
             self.status = "항상 위 표시를 적용할 수 없습니다"
@@ -176,6 +189,8 @@ class ClockApp:
                 self.topmost = desired
                 if self.settings_panel:
                     self.apply_topmost(self.settings_panel, desired)
+                if self.about_panel:
+                    self.apply_topmost(self.about_panel, desired)
         if mode == TopmostMode.AUTO:
             if not self.monitor.supported:
                 self.status = "자동 연동은 Windows 전용 · 일반 표시"
@@ -202,6 +217,8 @@ class ClockApp:
         self.persist()
         if self.settings_panel:
             self.settings_panel.refresh()
+        if self.about_panel:
+            self.about_panel.refresh()
 
     def set_preference(self, name, value):
         self.update_preferences(replace(self.preferences, **{name: value}))
@@ -224,6 +241,15 @@ class ClockApp:
             self.settings_panel = SettingsPanel(self)
             self.apply_topmost(self.settings_panel, bool(self.topmost))
 
+    def show_about(self):
+        self.dismiss_popup()
+        if not self.about_panel:
+            self.about_panel = AboutPanel(self)
+            self.apply_topmost(self.about_panel, bool(self.topmost))
+        self.about_panel.raise_()
+        self.about_panel.activateWindow()
+        self.about_panel.close_button.setFocus()
+
     def popup(self, position):
         self.dismiss_popup()
         self.popup_menu = ContextPopup(self, position)
@@ -235,6 +261,8 @@ class ClockApp:
     def escape(self):
         if self.popup_menu:
             self.dismiss_popup()
+        elif self.about_panel:
+            self.about_panel.close()
         elif self.settings_panel:
             self.settings_panel.close()
         else:
@@ -268,10 +296,15 @@ class ClockApp:
         self.tick_timer.stop()
         self.poll_timer.stop()
         self.chime_audio.stop()
+        if self.tray:
+            self.tray.close()
+        if self.about_panel:
+            self.about_panel.close()
         self.dismiss_popup()
         if self.settings_panel:
             self.settings_panel.close()
         self.persist()
+        QApplication.instance().quit()
 
     def close(self):
         self.root.close()
@@ -279,6 +312,10 @@ class ClockApp:
 
 if __name__ == "__main__":
     application = QApplication(sys.argv)
+    application.setApplicationName(APP_NAME)
+    application.setApplicationVersion(VERSION)
+    application.setOrganizationName(AUTHOR)
+    application.setWindowIcon(QIcon(str(ASSETS / "icon.png")))
     application.setFont(QFont("Malgun Gothic", 9))
     application.setStyle("Fusion")
     app = ClockApp()
@@ -289,7 +326,15 @@ if __name__ == "__main__":
             folder = Path("build")
             folder.mkdir(exist_ok=True)
             app.root.grab().save(str(folder / "packaged-preview.png"))
+            app.show_about()
+            application.processEvents()
+            app.about_panel.grab().save(str(folder / "packaged-about.png"))
             (folder / "packaged-verification.json").write_text(json.dumps({
+                "version": VERSION, "icon_loaded": not application.windowIcon().isNull(),
+                "about_visible": app.about_panel.isVisible(), "about_version": app.about_panel.version_label.text(),
+                "tray_available": app.tray_available,
+                "tray_visible": bool(app.tray and app.tray.icon.isVisible()),
+                "tool_window": app.root.windowType() == Qt.Tool,
                 "preferences": app.preferences.to_mapping(), "width": app.root.width(),
                 "height": app.root.height(), "visible": app.root.isVisible(),
                 "time": app.time_label.text(), "date": app.date_label.text(),

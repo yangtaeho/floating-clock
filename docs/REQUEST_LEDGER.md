@@ -229,11 +229,71 @@ R003 이후에도 `요청일 / 요청 분석 / 결정한 설계 / 항목별 ID·
 
 | ID | 항목 | 상태 | 기준 |
 |---|---|---|---|
-| R006-01 | 소스와 지침 분리 | planned | 시계 소스·자산 해시 일치, HTML/환경/개인설정 미포함, 독립 Git 루트 |
-| R006-02 | GitHub 전달 | planned | 비공개 새 원격 생성, main 푸시, 로컬/원격 HEAD 일치 |
-| R006-03 | Windows 배포 | planned | 로직·실제 Qt 창·독립 EXE 실행 검증, ZIP과 체크섬 |
-| R006-04 | Mac 배포 | planned | 두 아키텍처 실제 macOS 빌드 및 번들 실행 확인, DMG, 검증 한계 명시 |
+| R006-01 | 소스와 지침 분리 | verified | 시계 소스·자산 해시 일치, HTML/환경/개인설정 미포함, 독립 Git 루트 |
+| R006-02 | GitHub 전달 | verified | 비공개 새 원격 생성, main 푸시, 로컬/원격 HEAD 일치 |
+| R006-03 | Windows 배포 | verified | 로직·실제 Qt 창·독립 EXE 실행 검증, ZIP과 체크섬 |
+| R006-04 | Mac 배포 | implementing | 두 아키텍처 실제 macOS 빌드 및 번들 실행 확인, DMG, 검증 한계 명시 |
 
 ### 검증 및 Git 전달
 
-설계 기록 완료. 아직 구현/검증 전.
+- 시계 코드/자산 28개 SHA-256 일치(README와 .gitignore는 구조에 맞춰 변경). 독립 Git 루트 확인, HTML/개인설정/환경/산출물 미포함 확인.
+- 새 비공개 GitHub 저장소 생성. 최초 커밋 `6720fb50aa5b428207ffc74c3e0ebbb768105270`의 로컬/원격 HEAD 일치 확인. GitHub API로 사용자 계정과 이름/이메일을 확인하여 새 저장소 로컬 작성자로 적용. 전역 설정 변경 없음.
+- `python -m unittest -v`: 23개 통과. `python smoke_ui.py`: Windows 실제 창 240개 조합·알파·포커스·목록·정책·단축키 통과. `python smoke_audio.py`: 현재 Windows 장치 Ready→재생→종료 및 정각 1회 호출 통과. 새 소스 경로에서 기존 동일 버전 프로젝트 환경으로 검사.
+- 새 전용 `.venv`에서 `build-windows.ps1` 성공. `python package_release.py --platform windows-x64` 성공: 실제 EXE 실행/종료, 220×56 창 visible, 시보 WAV 및 Qt Ready. 기본값을 임시 사용자 환경에 격리해 검사하여 기존 설정을 보존. packaged-preview.png 직접 확인.
+- Windows ZIP `FloatingClock-windows-x64.zip` 및 SHA-256 생성. 릴리스 업로드 준비 중.
+- GitHub Actions 실행 `37639033191`: Apple Silicon 빌드 성공. Intel/Windows CI 진행 중. Mac은 offscreen 번들 실행과 이미지 렌더링 검사이며 실제 데스크톱 포커스·소리 출력·실기기 수용은 미검증.
+
+## R007 — 배포용 아이콘·버전·프로그램 정보
+
+요청일: 2026-10-07 (Asia/Seoul). 상태: **implementing**.
+
+### 의도와 요구
+
+사용자 추가 요청: 시계 배포판에 아이콘과 버전 정보, F1으로 여는 about 종류의 패널을 갖춘다. R006의 릴리스 발행을 이 요구까지 반영한 빌드 이후로 연기한다.
+
+### 설계와 기본값
+
+- 버전 `1.0.0`, 제품명 Floating Clock, 작성자 yangtaeho를 단일 메타데이터 모듈에서 관리한다.
+- 기존 앱 색상과 어울리는 둥근 시계 아이콘을 코드로 직접 그린다. PNG(앱/정보창), 다중 크기 ICO(Windows), ICNS(macOS)를 동일 도안으로 생성하고 소스로 추적한다.
+- F1, 우클릭 `프로그램 정보…` 및 설정창 F1에서 단일 정보창을 연다. 반복 호출은 같은 창 활성화. 테마 연동, 버전/작성자/사용법/단축키/오프라인 동작을 표시. Esc/닫기 버튼으로 정보창만 닫는다.
+- Windows PE 제품/파일 버전과 회사/설명, macOS Info.plist 버전·식별자·아이콘을 빌드에 적용한다. 실행 파일 검사에서 정보창·아이콘·버전도 확인한다.
+- 영향: app_metadata.py, about_panel.py, main.py, ui_components.py, settings_panel.py, assets, generate_icons.py, build_app.py, package_release.py, smoke_ui.py, README 및 누적 기록.
+
+| ID | 항목 | 상태 | 수용 기준 |
+|---|---|---|---|
+| R007-01 | 아이콘·버전 메타데이터 | planned | 두 OS 패키지에 아이콘과 1.0.0 정보, 앱 창 아이콘 |
+| R007-02 | 정보창과 접근 | verified | 실제 F1/우클릭/설정 F1·단일 창·Esc·테마·잘림·포커스 검증 |
+| R007-03 | 최종 배포·전달 | planned | 새 Windows EXE/두 Mac DMG 재빌드 및 패키지 정보창 검증, 릴리스 업로드 |
+
+### 검증 및 전달
+
+설계 기록 완료. 구현 전.
+
+## R008 — 시스템 트레이 상주
+
+요청일: 2026-10-07 (Asia/Seoul). 상태: **implementing**.
+
+### 의도와 설계
+
+사용자 추가 요청: 작은 시계의 특성상 작업표시줄 대신 시스템 트레이로 접근하는 형태가 필요하다.
+
+- Windows 기본값은 시스템 트레이 상주. 트레이 사용 가능 시 Qt Tool 창으로 작업표시줄 버튼을 없애고 시계는 계속 표시한다. 설정/정보창도 Tool 창을 사용한다.
+- Mac은 메뉴 막대 아이콘으로 제공. 번들의 LSUIElement를 사용하여 Dock 공간을 차지하지 않는 유틸리티로 동작. Tool 창은 비활성 시에도 시계를 유지한다.
+- 트레이 메뉴: 시계 표시/숨김, 설정, 프로그램 정보(F1), 종료. 아이콘 클릭/더블클릭은 숨겨진 시계를 복원. 숨긴 동안에도 정각 시보는 계속 실행한다. 마지막 창을 숨겨도 앱이 종료되지 않는다.
+- 기존 ×/Esc(시계만 있을 때)/Ctrl+Q의 종료 동작은 유지하고 트레이 숨김은 별도 메뉴로 명시한다. 숨김은 저장하지 않아 재실행하면 시계를 표시한다.
+- 트레이를 제공하지 않는 환경은 일반 창으로 폴백하여 접근 경로를 유지한다. 정보창·설정창에서 앱 종료하면 트레이도 제거한다.
+- 영향: tray_adapter.py, main.py, about_panel.py, settings_panel.py, build_app.py, smoke_ui.py, README, 검증 기록.
+
+| ID | 항목 | 상태 | 수용 기준 |
+|---|---|---|---|
+| R008-01 | 트레이와 작업표시줄 | verified | 실제 Windows 트레이 존재·Tool 플래그/작업표시줄 비표시, 트레이 없는 환경 폴백 |
+| R008-02 | 메뉴·수명 | verified | 숨김/복원·설정·정보·종료, 타이머 유지·상주·중복 없는 복원·아이콘 제거 |
+| R008-03 | 배포와 Mac 검증 한계 | planned | 최종 배포 재빌드, LSUIElement·메뉴 막대 설정 검사, 실기기 한계 명시 |
+
+### 검증 및 전달
+
+설계 기록 완료. 구현 전.
+
+- R007/R008 Windows 소스 검증: 전체 로직 23개, UI 240개 조합과 실제 F1/우클릭/설정 F1, 단일 정보창 재사용, 라이트/다크 알파·버전 문자열·잘림·포커스, 트레이 메뉴·숨김 중 타이머 유지·클릭 복원·설정 재사용·종료·아이콘 제거 통과. Windows 네이티브 WS_EX_TOOLWINDOW와 WS_EX_APPWINDOW 비설정 확인. 트레이 없는 환경의 일반 창 폴백 검사 통과.
+- `previews/about-light.png`, `about-dark.png`, `assets/icon.png` 직접 확인. 기존 오디오 실제 재생 검사 통과. Tool 창 전환 후 단축키 충돌을 발견하여 컨트롤러의 애플리케이션 범위 단축키 한 곳으로 통합하고 회귀 검사 통과. 이 단축키는 앱이 활성 상태일 때만 작동한다.
+- 최종 R007/R008 배포의 두 Mac 빌드 및 메타데이터 검증은 진행 중.

@@ -15,6 +15,9 @@ from PySide6.QtWidgets import QApplication
 
 from clock_core import ClockPreferences, DATE_PRESETS, TIME_PRESETS, format_clock
 from main import ClockApp
+from app_metadata import VERSION, ASSETS
+from PySide6.QtGui import QIcon
+from PySide6.QtWidgets import QSystemTrayIcon
 
 
 def verify_labels(app):
@@ -46,6 +49,7 @@ def run(capture=False):
     qt = QApplication.instance() or QApplication([])
     qt.setFont(QFont("Malgun Gothic", 9))
     qt.setStyle("Fusion")
+    qt.setWindowIcon(QIcon(str(ASSETS / "icon.png")))
     qt.setQuitOnLastWindowClosed(False)
     with patch("main.load_settings", return_value={}), patch("main.save_settings") as save, \
             patch("main.ChimeAudio.play", return_value=True) as play:
@@ -135,6 +139,81 @@ def run(capture=False):
         QTest.keyClick(app.popup_menu, Qt.Key_Escape)
         qt.processEvents()
         assert app.popup_menu is None
+        # Information access from F1, repeated calls, settings and context menu.
+        app.root.activateWindow()
+        app.root.setFocus()
+        QTest.qWait(100)
+        QTest.keyClick(app.root, Qt.Key_F1)
+        qt.processEvents()
+        about = app.about_panel
+        assert about and about.isVisible() and VERSION in about.version_label.text()
+        assert not about.windowIcon().isNull()
+        app.show_about()
+        assert app.about_panel is about, "Duplicate information window"
+        QTest.keyClick(about.close_button, Qt.Key_F1)
+        qt.processEvents()
+        assert app.about_panel is about
+        QTest.qWait(1100)
+        assert qt.activeWindow() is about and qt.focusWidget() is about.close_button
+        for theme in ("light", "dark"):
+            app.set_preference("theme", theme)
+            qt.processEvents()
+            assert app.about_panel is about and about.colors == app.colors
+            verify_alpha(about)
+            assert about.version_label.width() >= QFontMetrics(about.version_label.font()).horizontalAdvance(about.version_label.text())
+            assert about.geometry().bottom() <= about.screen().availableGeometry().bottom()
+            if capture:
+                Path("previews").mkdir(exist_ok=True)
+                about.grab().save(f"previews/about-{theme}.png")
+        QTest.keyClick(about.close_button, Qt.Key_Escape)
+        qt.processEvents()
+        assert app.about_panel is None and not app.closing
+        app.toggle_settings()
+        QTest.qWait(100)
+        QTest.keyClick(app.settings_panel.controls["size"][0], Qt.Key_F1)
+        qt.processEvents()
+        assert app.about_panel and app.settings_panel
+        app.about_panel.close()
+        app.settings_panel.close()
+        app.popup(QPoint(100, 100))
+        qt.processEvents()
+        app.popup_menu.buttons[-2].click()
+        qt.processEvents()
+        assert app.about_panel and app.popup_menu is None
+        app.about_panel.close()
+        if app.tray:
+            assert app.tray.icon.isVisible() and app.root.windowType() == Qt.Tool
+            if sys.platform == "win32":
+                user = ctypes.WinDLL("user32")
+                style = user.GetWindowLongW(int(app.root.winId()), -20)
+                assert style & 0x80 and not style & 0x40000, "Taskbar app window style"
+            app.tray.visibility.trigger()
+            qt.processEvents()
+            assert not app.root.isVisible() and app.poll_timer.isActive()
+            first = app.time_label.text()
+            QTest.qWait(1300)
+            assert not app.root.isVisible() and app.time_label.text() != first
+            app.tray.activate(QSystemTrayIcon.Trigger)
+            qt.processEvents()
+            assert app.root.isVisible()
+            app.tray.settings.trigger()
+            qt.processEvents()
+            assert app.settings_panel
+            panel = app.settings_panel
+            app.tray.settings.trigger()
+            assert app.settings_panel is panel
+            app.settings_panel.close()
+            app.tray.about.trigger()
+            qt.processEvents()
+            assert app.about_panel
+            app.about_panel.close()
+        # A desktop without a tray must retain a reachable regular window.
+        with patch("main.TrayAdapter.available", return_value=False):
+            fallback = ClockApp()
+            qt.processEvents()
+            assert fallback.tray is None and fallback.root.windowType() == Qt.Window
+            assert fallback.root.isVisible()
+            fallback.close()
         if capture:
             folder = Path("previews")
             folder.mkdir(exist_ok=True)
@@ -158,11 +237,15 @@ def run(capture=False):
         QTest.qWait(1300)
         assert app.time_label.text() != first
         app.popup(QPoint(100, 100))
-        app.close()
+        if app.tray:
+            app.tray.quit.trigger()
+        else:
+            app.close()
         qt.processEvents()
         assert app.closing
+        assert app.tray is None or not app.tray.icon.isVisible()
         print(f"PASS: {combinations} Qt combinations, per-pixel antialiasing, stable focus during "
-              "settings and live dropdown selection, no-activate topmost, shortcuts, popup, timer and exit")
+              "settings and live dropdown selection, no-activate topmost, shortcuts, F1/about, tray visibility/actions/fallback, popup, timer and exit")
 
 
 if __name__ == "__main__":

@@ -24,7 +24,7 @@ class ClockComboBox(QComboBox):
 
 class SettingsPanel(RoundedWindow):
     def __init__(self, app):
-        super().__init__(app.root, radius=18)
+        super().__init__(app.root, flags=app.utility_flags, radius=18)
         self.app = app
         self.setWindowTitle("시계 설정")
         self.setAttribute(Qt.WA_DeleteOnClose)
@@ -90,12 +90,6 @@ class SettingsPanel(RoundedWindow):
         x = max(bounds.left(), min(app.root.x() - self.width() - 12, bounds.right() - self.width()))
         y = max(bounds.top(), min(app.root.y(), bounds.bottom() - self.height()))
         self.move(x, y)
-        self.shortcuts = []
-        for key, callback in (("Ctrl+,", app.toggle_settings), ("Ctrl+Shift+S", app.toggle_settings),
-                              ("Meta+,", app.toggle_settings), ("Escape", self.close), ("Ctrl+Q", app.close)):
-            shortcut = QShortcut(QKeySequence(key), self)
-            shortcut.activated.connect(callback)
-            self.shortcuts.append(shortcut)
         self.show()
         self.activateWindow()
         self.controls["size"][0].setFocus()
