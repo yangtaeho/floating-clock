@@ -1,0 +1,48 @@
+name: Standalone distributions
+on:
+  push:
+    branches: [main]
+    paths-ignore: ['docs/**', 'AGENTS.md']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: windows-latest
+            platform: windows-x64
+          - runner: macos-15
+            platform: macos-arm64
+          - runner: macos-15-intel
+            platform: macos-x64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Create project environment
+        run: python -m venv .venv
+      - name: Build and verify distribution
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = "Windows" ]; then PY=.venv/Scripts/python.exe; else PY=.venv/bin/python; fi
+          "$PY" -m pip install -r requirements-build.txt
+          "$PY" -m unittest -v
+          "$PY" build_app.py
+          "$PY" package_release.py --platform '${{ matrix.platform }}'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: FloatingClock-${{ matrix.platform }}
+          path: release/*
+          if-no-files-found: error
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: verification-${{ matrix.platform }}
+          path: build/packaged-*
+          if-no-files-found: ignore
