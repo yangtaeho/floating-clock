@@ -15,6 +15,7 @@
 - 새 설치에는 작은 크기, 라이트 테마, 12시간제, 초·정각 시보 켜짐, 콜론 시간, `yyyy년 MM월 dd일 (ddd)` 날짜를 적용. R004는 시보를 추가하고 R005는 R003 날짜 기본값을 대체.
 - 사용자가 선택한 설정은 재실행 시 보존한다. R003은 이전 기본 날짜만 새 기본값으로 이전하고, v3 이후 선택값은 그대로 보존한다.
 - 시계는 오프라인으로 동작하며 외부 서비스를 사용하지 않는다.
+- R006부터 시계 전용 저장소에서 개발. R007 버전 1.0.0·고유 아이콘·F1 프로그램 정보, R008 Windows 시스템 트레이/작업표시줄 비표시 및 Mac 메뉴 막대 유틸리티. 원본 학습 저장소는 분리 전 상태로 보존.
 - 정각 시보는 짧은 두 음. 설정에서 켜기/끄기·미리 듣기. 실행 직후나 절전 복귀·시간 변경의 지난 시보는 재생하지 않는다.
 
 ## R001 — 최초 시계 제작
@@ -209,7 +210,7 @@ R003 이후에도 `요청일 / 요청 분석 / 결정한 설계 / 항목별 ID·
 
 ## R006 — 시계 전용 저장소 분리와 독립 실행 배포판
 
-요청일: 2026-10-07 (Asia/Seoul). 상태: **implementing**.
+요청일: 2026-10-07 (Asia/Seoul). 상태: **verified (Windows 실제 검증 및 macOS 네이티브 빌드 범위)**.
 
 ### 사용자 의도와 요구
 
@@ -232,7 +233,7 @@ R003 이후에도 `요청일 / 요청 분석 / 결정한 설계 / 항목별 ID·
 | R006-01 | 소스와 지침 분리 | verified | 시계 소스·자산 해시 일치, HTML/환경/개인설정 미포함, 독립 Git 루트 |
 | R006-02 | GitHub 전달 | verified | 비공개 새 원격 생성, main 푸시, 로컬/원격 HEAD 일치 |
 | R006-03 | Windows 배포 | verified | 로직·실제 Qt 창·독립 EXE 실행 검증, ZIP과 체크섬 |
-| R006-04 | Mac 배포 | implementing | 두 아키텍처 실제 macOS 빌드 및 번들 실행 확인, DMG, 검증 한계 명시 |
+| R006-04 | Mac 배포 | verified | 두 아키텍처 실제 macOS 빌드 및 번들 실행 확인, DMG, 검증 한계 명시 |
 
 ### 검증 및 Git 전달
 
@@ -245,7 +246,7 @@ R003 이후에도 `요청일 / 요청 분석 / 결정한 설계 / 항목별 ID·
 
 ## R007 — 배포용 아이콘·버전·프로그램 정보
 
-요청일: 2026-10-07 (Asia/Seoul). 상태: **implementing**.
+요청일: 2026-10-07 (Asia/Seoul). 상태: **verified (Windows UI 및 두 OS 패키지 범위)**.
 
 ### 의도와 요구
 
@@ -261,9 +262,9 @@ R003 이후에도 `요청일 / 요청 분석 / 결정한 설계 / 항목별 ID·
 
 | ID | 항목 | 상태 | 수용 기준 |
 |---|---|---|---|
-| R007-01 | 아이콘·버전 메타데이터 | planned | 두 OS 패키지에 아이콘과 1.0.0 정보, 앱 창 아이콘 |
+| R007-01 | 아이콘·버전 메타데이터 | verified | 두 OS 패키지에 아이콘과 1.0.0 정보, 앱 창 아이콘 |
 | R007-02 | 정보창과 접근 | verified | 실제 F1/우클릭/설정 F1·단일 창·Esc·테마·잘림·포커스 검증 |
-| R007-03 | 최종 배포·전달 | planned | 새 Windows EXE/두 Mac DMG 재빌드 및 패키지 정보창 검증, 릴리스 업로드 |
+| R007-03 | 최종 배포·전달 | verified | 새 Windows EXE/두 Mac DMG 재빌드 및 패키지 정보창 검증, 릴리스 업로드 |
 
 ### 검증 및 전달
 
@@ -271,7 +272,7 @@ R003 이후에도 `요청일 / 요청 분석 / 결정한 설계 / 항목별 ID·
 
 ## R008 — 시스템 트레이 상주
 
-요청일: 2026-10-07 (Asia/Seoul). 상태: **implementing**.
+요청일: 2026-10-07 (Asia/Seoul). 상태: **verified (Windows 실제 트레이 및 macOS 번들 설정 범위)**.
 
 ### 의도와 설계
 
@@ -288,7 +289,7 @@ R003 이후에도 `요청일 / 요청 분석 / 결정한 설계 / 항목별 ID·
 |---|---|---|---|
 | R008-01 | 트레이와 작업표시줄 | verified | 실제 Windows 트레이 존재·Tool 플래그/작업표시줄 비표시, 트레이 없는 환경 폴백 |
 | R008-02 | 메뉴·수명 | verified | 숨김/복원·설정·정보·종료, 타이머 유지·상주·중복 없는 복원·아이콘 제거 |
-| R008-03 | 배포와 Mac 검증 한계 | planned | 최종 배포 재빌드, LSUIElement·메뉴 막대 설정 검사, 실기기 한계 명시 |
+| R008-03 | 배포와 Mac 검증 한계 | verified | 최종 배포 재빌드, LSUIElement·메뉴 막대 설정 검사, 실기기 한계 명시 |
 
 ### 검증 및 전달
 
@@ -297,3 +298,16 @@ R003 이후에도 `요청일 / 요청 분석 / 결정한 설계 / 항목별 ID·
 - R007/R008 Windows 소스 검증: 전체 로직 23개, UI 240개 조합과 실제 F1/우클릭/설정 F1, 단일 정보창 재사용, 라이트/다크 알파·버전 문자열·잘림·포커스, 트레이 메뉴·숨김 중 타이머 유지·클릭 복원·설정 재사용·종료·아이콘 제거 통과. Windows 네이티브 WS_EX_TOOLWINDOW와 WS_EX_APPWINDOW 비설정 확인. 트레이 없는 환경의 일반 창 폴백 검사 통과.
 - `previews/about-light.png`, `about-dark.png`, `assets/icon.png` 직접 확인. 기존 오디오 실제 재생 검사 통과. Tool 창 전환 후 단축키 충돌을 발견하여 컨트롤러의 애플리케이션 범위 단축키 한 곳으로 통합하고 회귀 검사 통과. 이 단축키는 앱이 활성 상태일 때만 작동한다.
 - 최종 R007/R008 배포의 두 Mac 빌드 및 메타데이터 검증은 진행 중.
+
+- R007/R008 Windows 최종 EXE: build_app.py 및 package_release.py 성공. PE ProductName=Floating Clock, ProductVersion/FileVersion=1.0.0, CompanyName=yangtaeho 및 아이콘 리소스 검사 통과. 실행 정보 icon_loaded/about_visible/tray_available/tray_visible/tool_window 모두 true, 실제 정보창 이미지 직접 확인. 최종 Windows ZIP SHA-256은 `07e4912b1fe780a94bd4fa7c8bf95549d8ef83a5636300c9f8ec78c74c89e522`.
+
+### R006~R008 최종 검증과 전달
+
+- 최종 기능 커밋 `4db00813789ae609911afc3c5b273c0f8a868ef6`. GitHub Actions `37640515472`의 Windows x64, macOS arm64, macOS x64 모두 success. 각 OS에서 로직 23개·네이티브 패키징·실행/정보창/아이콘 검사 완료. Mac의 CFBundleShortVersionString/CFBundleVersion=1.0.0, 식별자 com.yangtaeho.floatingclock, LSUIElement=true, ICNS 자산 및 DMG 검증 통과.
+- Mac 검증 이미지를 직접 확인(한국어 렌더링/정보창). offscreen 환경에는 트레이가 없어서 일반 창 폴백을 사용했다. **실제 Mac 메뉴 막대 클릭·Dock 부재·포커스·오디오 출력은 미검증**이다. Windows CI 오디오 장치는 Error 상태지만 현재 사용자 PC의 실제 재생은 Ready→재생→종료로 확인했다.
+- 배포: https://github.com/yangtaeho/floating-clock-standalone/releases/tag/v1.0.0 . 비공개 저장소의 정식 릴리스에 Windows ZIP 및 두 Mac DMG와 각각 SHA-256 파일 총 6개 업로드. GitHub 자산 digest와 로컬 체크섬 일치 확인. 릴리스 태그는 최종 기능 커밋을 가리키며 이 완료 기록은 후속 문서 커밋에 전달한다.
+- Windows ZIP SHA-256: 07e4912b1fe780a94bd4fa7c8bf95549d8ef83a5636300c9f8ec78c74c89e522.
+- macOS arm64 DMG SHA-256: ef3ab89f6f18987df69de8fa54afd2870838b01629fe96b67e191a79ad89eb2e.
+- macOS x64 DMG SHA-256: 1ca35c5369c78a89de6dd91b2275399eacef6c8be22627c193c6bb3ad628302a.
+- Windows는 ZIP 압축 해제 후 EXE 실행. Mac은 DMG를 열고 앱을 Applications로 복사. Python/Qt 별도 설치 불필요. Mac 개발자 인증서 서명/공증 없음; 실행 차단 시 기기 보안 설정에서 해당 앱 허용 필요 가능. Mac 실기기 수용·이전 OS·다중 모니터 및 다양한 DPI는 남은 한계다.
+- Git 전달: 소스와 지침·요청 기록·검증 이미지만 추적. 개인 설정/.venv/빌드 결과/인증 제외. 작성자와 원격은 확인된 yangtaeho 계정을 사용했고 전역 설정은 변경하지 않았다.

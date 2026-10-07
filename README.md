@@ -96,7 +96,7 @@ Mac에서는 `sh build-macos.sh`가 PySide6와 빌드 도구를 로컬 `.venv`�
 
 이 저장소는 `yangtaeho/floating-clock`의 시계 부분을 분리한 전용 저장소입니다. 학습 HTML과 이전 혼합 이력은 원본에 보존했습니다. 출처와 파일 해시는 `docs/EXTRACTION.json`에 있습니다.
 
-배포판은 GitHub Releases에서 내려받습니다. Windows x64 ZIP은 압축을 풀고 FloatingClock.exe를 실행합니다. macOS DMG는 열어서 FloatingClock.app을 Applications로 복사합니다. Apple Silicon(arm64)과 Intel(x64) 버전을 구분합니다. Python이나 Qt를 별도 설치할 필요가 없습니다. macOS 빌드 기준은 macOS 15이며 이전 OS는 미검증입니다.
+배포판은 [버전 1.0.0 다운로드](https://github.com/yangtaeho/floating-clock-standalone/releases/tag/v1.0.0)에서 내려받습니다. Windows x64 ZIP은 압축을 풀고 FloatingClock.exe를 실행합니다. macOS DMG는 열어서 FloatingClock.app을 Applications로 복사합니다. Apple Silicon(arm64)과 Intel(x64) 버전을 구분합니다. Python이나 Qt를 별도 설치할 필요가 없습니다. macOS 빌드 기준은 macOS 15이며 이전 OS는 미검증입니다.
 
 Mac 앱은 개발자 인증서 서명·Apple 공증이 없는 배포판입니다. macOS가 실행을 차단하면 시스템 설정의 개인정보 보호 및 보안에서 해당 앱의 실행을 허용해야 할 수 있습니다. Mac 실제 화면·소리와 사용자 수용은 별도 확인이 필요합니다.
 
