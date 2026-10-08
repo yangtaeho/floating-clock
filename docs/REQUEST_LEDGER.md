@@ -406,3 +406,17 @@ Windows 구현·검증과 공개/배포 전달 완료. 회사 Windows 독립 실
 요청일: 2026-10-08. 상태: **planned (다음 버전으로 유예)**.
 
 사용자 요청: 약 54MB인 배포판이 크므로 다음 버전에서 축소한다. 이번 v1.1.0의 구현/수용 범위에서 제외한다. 다음 작업은 파일 구성·Qt/오디오 플러그인 비중을 측정하고 불필요한 포함 제거와 대체 패키징을 비교한다. 실행 필수 의존성·한국어·아이콘·시보·독립 실행을 유지하고 Windows/Mac 각각 크기와 동작을 검증할 것. 설계 기본값과 구체적 영향 파일·목표 크기는 실측 후 정한다.
+
+
+## R012 — 사용자 PC의 C:/dev/tools 설치본 v1.1.0 갱신
+
+요청일: 2026-10-08. 상태: **verified**.
+
+의도: GitHub 배포뿐 아니라 실제 사용하는 C:/dev/tools/FloatingClock.exe도 새 버전으로 갱신한다.
+설계·기본값: 기존 EXE를 날짜가 포함된 backups 하위 폴더로 백업하고 공개 v1.1.0 Windows ZIP의 EXE와 라이선스/안내를 설치한다. 기존 FloatingClock.lnk의 대상/내용과 사용자 설정은 보존한다. 대상 EXE가 실행 중인지 확인하고, 현재 실행 중인 대상이 없으면 바로 교체한다. 설치된 EXE를 임시 사용자 환경에서 --verify-build로 검사한 뒤 사용자 환경에서 새 시계를 실행한다. 영향: tools 설치 파일과 백업, 이 누적 문서; 제품 소스 변경 없음.
+수용 기준: 설치 EXE 버전=1.1.0·릴리스 EXE와 SHA-256 일치, 기존 EXE 백업 해시 일치, 바로가기 보존, 설치 경로에서 실제 패키지 검사 성공, 새 프로세스 실행 확인. 기존 기능·플랫폼 검증 한계는 R010 유지.
+검증 및 전달:
+- 교체 전 대상 실행 프로세스 없음. 기존 EXE를 tools/backups/FloatingClock-previous-20261008-210509/FloatingClock.exe에 복사하고 이전 SHA-256 일치 확인.
+- 공식 v1.1.0 ZIP 체크섬 검증 후 EXE와 라이선스/외부 원문/READ-ME 설치. 설치 EXE SHA-256 bb76cfec3d4205c3c806203adc453a568bbda568883f95e97b41c7866c584125, 검증된 릴리스 EXE와 일치.
+- 설치 경로의 실제 EXE를 임시 사용자 환경에서 --verify-build로 실행: version=1.1.0, visible/tray_visible/about_visible/chime_asset_exists=true. 바로가기 대상 C:/dev/tools/FloatingClock.exe 및 기존 .lnk 해시, 사용자 설정 해시 보존.
+- 설치된 새 EXE를 사용자 환경에서 실행. onefile 부모/자식 프로세스와 실제 Floating Clock 창 visible=true 확인. 기존 설정으로 실행 중. 제품 코드/릴리스는 변경 없음. 이 설치 완료 기록만 문서 커밋으로 전달.
