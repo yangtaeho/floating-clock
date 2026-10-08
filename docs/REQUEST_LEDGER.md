@@ -486,7 +486,7 @@ Windows 구현·검증과 공개/배포 전달 완료. 회사 Windows 독립 실
 
 ## R018 — ARM Mac 실기기 실행 확인과 설정 패널 깜빡임 개선
 
-요청일: 2026-10-08. 상태: **verified (Windows 실제 Qt 및 Mac CI 범위 / ARM Mac 깜빡임 재수용 대기)**.
+요청일: 2026-10-08. 상태: **verified (Windows·Mac CI 및 R019의 ARM Mac 사용자 깜빡임 수용 완료)**.
 
 사용자 보고: v1.2.1 ARM Mac이 안내대로 실행되고 잘 동작함을 확인. 설정 창·셀렉트 박스의 흔들림과 오른쪽 스크롤바 깜빡임은 남아 있음. 실행 성공만 실기기 검증으로 추가하며 모든 개별 기능의 수용으로 확대하지 않는다.
 
@@ -512,7 +512,7 @@ Windows 구현·검증과 공개/배포 전달 완료. 회사 Windows 독립 실
 
 ## R019 — ARM Mac 설정 개선 수용과 단축키 확인·시계 크기 조절
 
-요청일: 2026-10-08. 상태: **implementing**.
+요청일: 2026-10-08. 상태: **verified (Windows 실제 UI·키 및 Mac 네이티브 등록/이벤트·번들 범위 / 물리 키 재수용 대기)**.
 
 사용자 보고: ARM Mac에서 v1.2.2의 이전 설정 창/셀렉트/스크롤 문제들이 해결된 것으로 확인. 이 범위는 실기기 수용 완료로 추가. 단축키는 잘 동작하는지 불확실하며, 시계는 생각보다 큼. 단축키 종류와 원하는 축소 수준은 확인 중.
 
@@ -526,3 +526,22 @@ Windows 구현·검증과 공개/배포 전달 완료. 회사 Windows 독립 실
 - 사용자가 지칭한 것은 숨긴 시계 복원 전역 키. 기존 v1.2.2 Mac 미지원이 원인이며 v1.2.3에 Mac 네이티브 전역 등록을 추가. 기본 키는 Qt portable Ctrl+Alt+Shift+C, C의 Mac 표현 ⌘⌥⇧C → C. Carbon RegisterEventHotKey/앱 이벤트 핸들러를 사용하고 입력 모니터링/외부 Python 라이브러리를 추가하지 않음. 1초 동안만 두 번째 키를 등록하고 완료/시간초과/입력 편집/설정 변경/종료에 해제, 같은 첫 조합 반복도 기본 제스처를 완료. 설정 커스텀/끄기/등록 오류 표시 유지. Mac Ctrl는 ⌘, Meta는 ⌃로 Qt와 동일하게 해석. F21~F24는 Mac 하드웨어 키 매핑 부재로 오류 표시, F1~F20 지원. ANSI 키 위치 기준.
 - 사용자 크기 선택은 Mac에서만 기존의 약 90%, Windows는 현재 유지. 위 초기 65/80/100/120% 제안을 대체해 선택을 80/90/100/120%로 확정. OS 독립 ClockPreferences 기본값은 100%, 설정 로딩 어댑터가 비율 없는 Mac 설정(기존 버전 포함)에 90% 적용. Windows는 100%, 명시 선택 값은 재시작·업그레이드 시 보존. 설정 패널 자체는 축소하지 않음.
 - Mac CI에서 실제 Cocoa 환경의 Carbon 등록 및 네이티브 이벤트 전달로 숨김 복원·두 단계·시간초과·커스텀·입력 중 중지/재등록·끄기 검사. OS에서 사람이 누르는 실제 전역 키와 다른 앱에서 전경 이동은 사용자 Mac 재수용 범위로 구분. Windows 실제 Qt 비율 포함 1440조합 검사, 기본100% 치수 유지·90% 축소·클릭·화면복구·설정 패널 안정성 검사.
+
+
+### R019 v1.2.3 검증·전달
+
+- R018 설정/셀렉트/스크롤 깜빡임은 ARM Mac 사용자 재확인으로 해결 수용. R019의 새 Mac 물리 키/90% 크기는 아직 사용자 재수용 전.
+- 구현 및 전달 소스 커밋 6709f31726ca54884d709840a2e443d4eadd268e. Mac backend는 시스템 Carbon/HIToolbox API만 사용, 콜백/참조 수명 유지와 pressed/released로 반복 키 방지. Qt 주 루프에 복원 전달, 이벤트 signature로 해당 등록만 처리. 기존 Windows RegisterHotKey 방식과 modifier semantics 유지. 외부 의존성/키보드 모니터링 추가 없음.
+- `python -m unittest -q`: 37개 통과(비율의 Mac90/Windows100 이전, 명시값 보존/손상값, Qt Mac modifier→Command/Control·키 위치와 F21~24 거부 포함).
+- Windows `smoke_ui.py --capture`: 1440개 조합(크기·세 테마·시간제·초·시간/날짜 형식·4비율), 잘림·부분 알파·설정 포커스/열린 목록·네이티브 topmost·툴팁·메뉴·확인 후 종료/트레이 검사 통과. `smoke_settings.py`: 6개 테마/작업영역 조합의 540회 미리보기·비율 변경·열린 목록·타이머/스크롤 안정성 통과.
+- Windows 격리 `build/hotkey-smoke.py`: 실제 기본 두 단계·시간초과/bare C 해제·사용자 한 단계·선점 실패/해제 후 재등록·끄기 통과.
+- GitHub Actions 37790200640: Windows x64/Mac arm64/Mac x64 세 작업 success. 각 플랫폼 로직 37개·설정 기하 안정성과 네이티브 빌드/시보 검사 통과.
+- Mac `smoke_mac_hotkey.py`: 실제 Cocoa 앱에서 Carbon 기본/커스텀 키 exclusive 등록 성공. CreateEvent/SetEventParameter/SendEventToEventTarget로 실제 설치된 네이티브 이벤트 핸들러에 pressed/released 전달: 첫 단계 대기(숨김 유지), bare C 두 번째 등록, 둘째 후 숨김 복원, 1초 시간초과/둘째 해제, 커스텀 키 복원, suspend/resume/disable 참조 해제 통과. 물리 키 입력·다른 앱 전경 활성화는 시뮬레이션하지 않았으며 physical_keypress_verified=false 기록.
+- 실제 Mac 번들 정보창에서 기본 전역 키가 NativeText ⌘⌥⇧C, C 및 사용 가능으로 표시되는 이미지 확인. 번들 오디오 Ready→시작→끝남. Mac 기본 작은 시계 같은 빌드 환경에서 175×56→160×50 논리픽셀, scale90 확인. Windows 기본 비율100 유지, 빌드/설치 검사는 184~185×56(폰트/DPI 반올림 차이) 확인. 날짜·크기·테마/사용자 위치는 보존.
+- 정식 공개 https://github.com/yangtaeho/floating-clock/releases/tag/v1.2.3 . 위 소스 커밋 대상으로 Windows ZIP·Mac 두 DMG·각 SHA-256 파일 총6개. 바이너리 로컬 SHA-256과 GitHub digest 일치 후 정식 발행.
+- Windows ZIP 31,584,595 bytes, SHA-256 7acfb9205185e66ecc5081101a8eddcd9c770eb6f786f4ad4552b6a1ec51b9db.
+- Mac ARM DMG 33,854,153 bytes, SHA-256 90d5273f85c99cbb13709f98ffbfb484c46b03811055138e08b58e9fc8d3556b.
+- Mac Intel DMG 36,896,588 bytes, SHA-256 6ed86e33a9247c129dede755900dab16b13b04772609afa3ec3e4871dc8c5f71.
+- C:/dev/tools 기존1.2.2 실행 파일·설정·바로가기 백업: C:/dev/tools/backups/FloatingClock-1.2.2-20261008-231223. 정확한 EXE 경로로 확인된 프로세스만 갱신 범위에서 중지, 교체 직전 설정도 추가 백업. 설정/lnk 해시 보존, 설치 EXE 1.2.3·31,827,376 bytes·SHA-256 e3cc2efec5212717c80a7d0a7ef22b07da837c5cee13c9bf81b71a96398247e0, 배포 EXE와 일치.
+- 설치 경로의 실제 --verify-audio: scale100·높이56·ID/아이콘/트레이/About·오디오 끝남 확인. 사용자 환경 재실행 후 시계 창 하나 visible, 두 번째 실행 exit0/동일 HWND2822320 유지. 기존 Windows 크기 비율과 설정 유지.
+- 한계: Mac의 사람이 누르는 전역 키/타 앱에서 실제 전경 이동과 새 비율 만족도는 사용자 재수용 대상. ANSI 물리 키 위치, F1~F20 지원. OS/타앱 선점은 설정에 등록 오류 표시. Apple 개발자 서명·공증과 기존 UHD/DPI 전체 수용 한계 유지. 인증/사용자 설정/SDK 참고 헤더·빌드/EXE/백업은 Git 제외.

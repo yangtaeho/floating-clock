@@ -13,7 +13,7 @@
 ## 구조와 검증
 
 - `clock_core.py`: 플랫폼 및 UI 의존성이 없는 시간·날짜·설정·표시 정책.
-- `platform_adapter.py`: Windows Shell·앱 ID·사용자 지정 전역 키 등 OS 전용 기능. `hotkey_core.py`는 독립 키 정책, `instance_adapter.py`는 사용자별 단일 실행과 로컬 복원.
+- `platform_adapter.py`: Windows Shell·앱 ID·사용자 지정 전역 키 등 OS 전용 기능. `mac_hotkey.py`는 시스템 Carbon 기반 Mac 전역 키, Qt portable Ctrl→Command/Meta→Control 규칙을 유지. `hotkey_core.py`는 독립 키 정책, `instance_adapter.py`는 사용자별 단일 실행과 로컬 복원.
 - `bundle_policy.py`: 필수 UI/PCM 오디오를 유지하며 미사용 구성 제외. 배포 변경은 실제 번들 오디오와 세 플랫폼 크기를 검사한다.
 - `chime_core.py`: 플랫폼 독립 정각 판정·원본 WAV 생성. `chime_audio.py`: 공통 Qt 비동기 재생 어댑터. 시보 변경은 절전·시각 변경·중복과 실제 재생을 검증한다.
 - `main.py`, `ui_components.py`, `settings_panel.py`: PySide6(Qt) UI와 상호작용. R003부터 Tk UI를 대체한다.
@@ -26,3 +26,5 @@
 - 이 저장소는 시계 전용이다. 원본 학습 HTML은 포함하지 않는다.
 - 사용자 설정과 `.venv`, 빌드 중간 산출물, 실행 파일을 Git에 넣지 않는다. 소스와 빌드 스크립트를 추적한다.
 - 커밋·푸시가 요청되면 확인된 사용자 작성자 정보와 원격을 사용한다. 전역 Git 설정은 변경하지 않는다. 원격 주소나 인증이 없으면 로컬 작업은 끝내고 부족한 정보를 구체적으로 보고한다.
+
+- 비율 정책: 순수 모델100%, 설정 로딩 어댑터의 Mac 기본90%/Windows100%, 명시값 유지. 비율 변경은 시계만 축소하고 설정 패널 크기는 유지. `smoke_settings.py`와 Mac Cocoa `smoke_mac_hotkey.py`를 실행하며 네이티브 이벤트 전달과 실제 물리 키 수용을 구분한다.
