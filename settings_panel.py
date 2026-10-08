@@ -1,12 +1,20 @@
 """Stable Qt preferences panel: no widget recreation during changes."""
 from datetime import datetime
 from PySide6.QtCore import Qt, QSignalBlocker, QPointF
-from PySide6.QtGui import QFont, QKeySequence, QShortcut, QPainter, QPen, QColor, QPolygonF, QPalette
+from PySide6.QtGui import QFont, QKeySequence, QShortcut, QPainter, QPen, QColor, QPolygonF, QPalette, QFontMetrics
 from PySide6.QtWidgets import (QWidget, QLabel, QVBoxLayout, QHBoxLayout, QComboBox,
-                               QPushButton, QButtonGroup, QFrame, QListView, QKeySequenceEdit, QScrollArea)
+                               QPushButton, QButtonGroup, QFrame, QListView, QKeySequenceEdit, QScrollArea, QSizePolicy, QProxyStyle, QStyle)
 from clock_core import TIME_PRESETS, DATE_PRESETS, format_clock
 from hotkey_core import parse_shortcut
 from ui_components import RoundedWindow, button
+
+
+class PersistentScrollStyle(QProxyStyle):
+    """Avoid macOS overlay/auto-hide scrollbar transitions in settings."""
+    def styleHint(self, hint, option=None, widget=None, returnData=None):
+        if hint == QStyle.SH_ScrollBar_Transient:
+            return 0
+        return super().styleHint(hint, option, widget, returnData)
 
 
 class ClockComboBox(QComboBox):
@@ -14,12 +22,20 @@ class ClockComboBox(QComboBox):
         super().__init__(parent)
         self.arrow_color = "#718094"
 
-    def showPopup(self):
-        super().showPopup()
+    def prepare_popup(self):
+        # Prepare the native container before its first visible frame.
         container = self.view().window()
-        container.setPalette(self.palette())
+        palette = self.palette()
+        if container.palette() != palette:
+            container.setPalette(palette)
         container.setAutoFillBackground(True)
-        container.setStyleSheet(f"background: {self.palette().color(QPalette.Base).name()};")
+        sheet = f"background: {palette.color(QPalette.Base).name()};"
+        if container.styleSheet() != sheet:
+            container.setStyleSheet(sheet)
+
+    def showPopup(self):
+        self.prepare_popup()
+        super().showPopup()
 
     def paintEvent(self, event):
         super().paintEvent(event)
@@ -56,6 +72,7 @@ class SettingsPanel(RoundedWindow):
         self.setAttribute(Qt.WA_DeleteOnClose)
         self.controls = {}
         self.groups = []
+        self.applied_theme = None
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
         self.scroll = QScrollArea(self)
@@ -63,6 +80,10 @@ class SettingsPanel(RoundedWindow):
         self.scroll.setFrameShape(QFrame.NoFrame)
         self.scroll.setWidgetResizable(True)
         self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scrollbar = self.scroll.verticalScrollBar()
+        self.scroll_style = PersistentScrollStyle('Fusion')
+        self.scroll_style.setParent(scrollbar)
+        scrollbar.setStyle(self.scroll_style)
         self.body = QWidget()
         self.body.setObjectName('settingsBody')
         self.scroll.setWidget(self.body)
@@ -91,6 +112,10 @@ class SettingsPanel(RoundedWindow):
         self.preview_time.setFont(QFont("Malgun Gothic", 18, QFont.Bold))
         self.preview_date = QLabel()
         self.preview_date.setFont(QFont("Malgun Gothic", 10))
+        # Time digit widths must not invalidate the scroll area's size hints.
+        for label in (self.preview_time, self.preview_date):
+            label.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Fixed)
+            label.setFixedHeight(QFontMetrics(label.font()).height())
         preview_layout.addWidget(self.preview_time)
         preview_layout.addWidget(self.preview_date)
         layout.addWidget(self.preview)
@@ -139,8 +164,11 @@ class SettingsPanel(RoundedWindow):
         self.refresh()
         bounds = app.root.screen().availableGeometry()
         self.body.adjustSize()
-        self.setFixedSize(max(450, self.body.sizeHint().width() + 16),
-                          min(self.body.sizeHint().height(), bounds.height() - 16))
+        content_height = self.body.sizeHint().height()
+        panel_height = min(content_height, bounds.height() - 16)
+        self.scroll.setVerticalScrollBarPolicy(
+            Qt.ScrollBarAlwaysOn if content_height > panel_height else Qt.ScrollBarAlwaysOff)
+        self.setFixedSize(max(450, self.body.sizeHint().width() + 16), panel_height)
         x = max(bounds.left(), min(app.root.x() - self.width() - 12, bounds.right() - self.width()))
         y = max(bounds.top(), min(app.root.y(), bounds.bottom() - self.height()))
         self.move(x, y)
@@ -212,6 +240,14 @@ class SettingsPanel(RoundedWindow):
 
     def refresh(self):
         colors = self.app.colors
+        theme_changed = self.applied_theme != self.app.preferences.theme
+        if theme_changed:
+            self.apply_theme(colors)
+            self.applied_theme = self.app.preferences.theme
+        self.sync_controls(theme_changed)
+        self.update_preview(datetime.now().astimezone())
+
+    def apply_theme(self, colors):
         self.apply_colors(colors)
         self.setStyleSheet(self.styleSheet() + f"""
             QScrollArea#settingsScroll, QWidget#settingsBody {{ background: transparent; }}
@@ -240,6 +276,9 @@ class SettingsPanel(RoundedWindow):
         for label in self.labels + [self.description, self.preview_date, self.hint, self.chime_hint, self.hotkey_hint, self.hotkey_status]:
             label.setStyleSheet(f"color: {colors['muted']};")
         self.status_label.setStyleSheet(f"color: {colors['accent']};")
+
+    def sync_controls(self, theme_changed):
+        colors = self.app.colors
         for name, controls in self.controls.items():
             value = getattr(self.app.preferences, name)
             if isinstance(controls, list):
@@ -248,18 +287,20 @@ class SettingsPanel(RoundedWindow):
                     control.setChecked(control.property("value") == value)
                     del blocker
             else:
-                palette = controls.palette()
-                for role, color in ((QPalette.Window, colors['panel']), (QPalette.Base, colors['panel']),
-                                    (QPalette.Button, colors['panel']), (QPalette.Text, colors['fg']),
-                                    (QPalette.WindowText, colors['fg']), (QPalette.ButtonText, colors['fg']),
-                                    (QPalette.Highlight, colors['selected']), (QPalette.HighlightedText, colors['fg'])):
-                    palette.setColor(role, QColor(color))
-                controls.setPalette(palette)
-                controls.view().setPalette(palette)
-                controls.view().viewport().setPalette(palette)
-                controls.view().viewport().setAutoFillBackground(True)
-                controls.arrow_color = colors["muted"]
-                controls.update()
+                if theme_changed:
+                    palette = controls.palette()
+                    for role, color in ((QPalette.Window, colors['panel']), (QPalette.Base, colors['panel']),
+                                        (QPalette.Button, colors['panel']), (QPalette.Text, colors['fg']),
+                                        (QPalette.WindowText, colors['fg']), (QPalette.ButtonText, colors['fg']),
+                                        (QPalette.Highlight, colors['selected']), (QPalette.HighlightedText, colors['fg'])):
+                        palette.setColor(role, QColor(color))
+                    controls.setPalette(palette)
+                    controls.view().setPalette(palette)
+                    controls.view().viewport().setPalette(palette)
+                    controls.view().viewport().setAutoFillBackground(True)
+                    controls.arrow_color = colors["muted"]
+                    controls.update()
+                    controls.prepare_popup()
                 blocker = QSignalBlocker(controls)
                 controls.setCurrentIndex(controls.findData(value))
                 del blocker
@@ -267,12 +308,13 @@ class SettingsPanel(RoundedWindow):
         if not self.shortcut_editor.hasFocus():
             self.shortcut_editor.setKeySequence(QKeySequence(self.app.preferences.recovery_shortcut))
         self.update_hotkey_status()
-        self.update_preview(datetime.now().astimezone())
 
     def update_preview(self, now):
         clock = format_clock(now, self.app.preferences)
-        self.preview_time.setText(clock.time)
-        self.preview_date.setText(clock.date)
+        if self.preview_time.text() != clock.time:
+            self.preview_time.setText(clock.time)
+        if self.preview_date.text() != clock.date:
+            self.preview_date.setText(clock.date)
 
     def closeEvent(self, event):
         self.resume_shortcuts()

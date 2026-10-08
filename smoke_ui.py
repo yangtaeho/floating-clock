@@ -8,8 +8,8 @@ import ctypes
 from ctypes import wintypes
 from unittest.mock import patch
 
-from PySide6.QtCore import Qt, QPoint
-from PySide6.QtGui import QFont, QFontMetrics
+from PySide6.QtCore import Qt, QPoint, QPointF
+from PySide6.QtGui import QFont, QFontMetrics, QEnterEvent
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication
 
@@ -306,11 +306,17 @@ def run(capture=False):
             began = perf_counter()
             QCursor.setPos(control.mapToGlobal(QPoint(12, 12)))
             QTest.mouseMove(app.help_button if app.help_button.isVisible() else app.hide_button, QPoint(12, 12))
+            # QTest's synthetic move can omit Enter after a native popup closes.
+            # Send that Qt event explicitly; rendering and cursor-exit remain real.
+            qt.sendEvent(control, QEnterEvent(QPointF(12,12),
+                QPointF(control.mapTo(app.root, QPoint(12,12))),
+                QPointF(control.mapToGlobal(QPoint(12,12)))))
             QTest.qWait(20)
             qt.processEvents()
             control = app.help_button if app.help_button.isVisible() else app.hide_button
             hint = control.hint
-            assert hint and hint.isVisible()
+            assert hint and hint.isVisible(), (theme, control.isVisible(), control.underMouse(),
+                QCursor.pos(), control.mapToGlobal(QPoint(12,12)), qt.widgetAt(QCursor.pos()))
             assert (perf_counter()-began)*1000 < 125
             assert hint.geometry().bottom() < control.mapToGlobal(QPoint(0,0)).y()
             assert qt.activeWindow() is app.root

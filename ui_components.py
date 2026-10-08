@@ -57,6 +57,8 @@ class RoundedWindow(QWidget):
         super().mouseReleaseEvent(event)
 
     def apply_colors(self, colors):
+        if self.colors == colors and self.styleSheet():
+            return
         self.colors = colors
         self.setStyleSheet(f"""
             QLabel {{ color: {colors['fg']}; background: transparent; border: none; }}

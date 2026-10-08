@@ -35,6 +35,8 @@ jobs:
           if [ "$RUNNER_OS" = "Windows" ]; then PY=.venv/Scripts/python.exe; else PY=.venv/bin/python; fi
           "$PY" -m pip install -r requirements-build.txt
           "$PY" -m unittest -v
+          if [ "$RUNNER_OS" = "macOS" ]; then export QT_QPA_PLATFORM=offscreen; fi
+          "$PY" smoke_settings.py
           "$PY" build_app.py
           "$PY" package_release.py --platform '${{ matrix.platform }}'
       - uses: actions/upload-artifact@v4
