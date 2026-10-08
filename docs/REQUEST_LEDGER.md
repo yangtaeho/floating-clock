@@ -403,7 +403,7 @@ Windows 구현·검증과 공개/배포 전달 완료. 회사 Windows 독립 실
 
 ## R011 — 다음 버전: 독립 실행 배포판 용량 축소
 
-요청일: 2026-10-08. 상태: **implementing (R013 / v1.2.0에서 수행)**.
+요청일: 2026-10-08. 상태: **verified (R013/R017의 v1.2.1에서 수행)**.
 
 사용자 요청: 약 54MB인 배포판이 크므로 다음 버전에서 축소한다. 이번 v1.1.0의 구현/수용 범위에서 제외한다. 다음 작업은 파일 구성·Qt/오디오 플러그인 비중을 측정하고 불필요한 포함 제거와 대체 패키징을 비교한다. 실행 필수 의존성·한국어·아이콘·시보·독립 실행을 유지하고 Windows/Mac 각각 크기와 동작을 검증할 것. 설계 기본값과 구체적 영향 파일·목표 크기는 실측 후 정한다.
 
@@ -424,7 +424,7 @@ Windows 구현·검증과 공개/배포 전달 완료. 회사 Windows 독립 실
 
 ## R013 — v1.2.0 Windows 앱 식별과 배포판 경량화·설치 갱신
 
-요청일: 2026-10-08. 상태: **implementing**.
+요청일: 2026-10-08. 상태: **verified (Windows 실제 검증 / Mac 네이티브 번들 범위, 아래 한계 참조)**.
 
 의도: Windows 트레이 설정에서 Python/긴 설명으로 보이는 시계 이름을 Floating Clock으로 고치고 미완료 R011 용량 축소를 이번 버전에서 처리한다. 완성한 Windows/Mac 배포판을 GitHub에 올리고 C:/dev/tools 설치본까지 갱신한다.
 설계/기본값: v1.2.0. Windows 프로세스에 BUNDLE_ID 기반 AppUserModelID를 창/트레이 생성 전에 적용, Qt 표시명과 PE FileDescription을 Floating Clock으로 통일. Windows 설치 정리에서는 예전 Python 트레이 기록의 아이콘 snapshot이 시계와 정확히 일치하고 UID=0/경로가 확인된 항목만 백업 후 제거하며, '항상 표시' 선택을 실제 tools EXE 항목에 이전. 다른 Python/앱 기록과 시작프로그램은 변경하지 않음.
@@ -432,12 +432,12 @@ Windows 구현·검증과 공개/배포 전달 완료. 회사 Windows 독립 실
 - UI/시보/트레이/화면 복구·독립 실행 유지. 설치본 --verify-build 및 실제 번들 오디오 Ready→재생→종료 검사. 기존 종료 확인을 거쳐 현재 tools 실행본을 종료하고 백업/교체/재실행. 이전 설정·바로가기 보존.
 - 영향: app_metadata/platform_adapter/main/build_app, 패키지 검증/빌드 구성/README·AGENTS·누적 기록, tools 설치본/관련 캐시(로컬 백업). 실제 UHD 케이블 분리·Mac 실기기/서명 등 R010의 환경상 한계는 미검증으로 유지.
 수용: 앱 ID/표시명/PE FileDescription 확인, Windows 캐시의 시계에 해당하는 Python 기록만 정리, ZIP 크기≥30% 감소·두 Mac 전후 측정, 로직/실제 Qt UI·소스 및 번들 오디오, 3종 CI·릴리스/체크섬·tools 실행 확인.
-검증 및 전달: 설계 완료, 구현 전.
+검증 및 전달: R017의 v1.2.1 묶음 검증·배포 기록 참조.
 
 
 ## R014 — v1.2.0 사용자 지정 전역 복원 단축키
 
-요청일: 2026-10-08. 상태: **implementing**.
+요청일: 2026-10-08. 상태: **verified (Windows 실제 검증 / Mac 네이티브 번들 범위, 아래 한계 참조)**.
 의도: 기존 Ctrl+Alt+C는 충돌 우려가 높으므로 Ctrl+Alt+Shift+C, C를 기본으로 하고 사용자마다 단축키를 설정할 수 있도록 한다. R010 고정 전역 키 정책을 대체하고 R013/v1.2.0에 함께 배포한다.
 설계/기본값: Windows 기본 Ctrl+Alt+Shift+C를 누른 뒤 1초 안에 C(또는 같은 조합을 한 번 더)를 눌러 복원. 사용자 키 입력 위젯에서 1~2단계 조합을 입력한 뒤 적용하거나 사용 안 함 선택. 첫 단계에는 Ctrl/Alt/Win 중 하나 필요. 설정 필드 recovery_shortcut 저장, 기존 설정에는 새 기본값 보충. 등록 실패/유효하지 않은 키/사용 안 함/Windows 전용 상태를 설정·도움말에 표시. 키 입력 중 기존 전역·앱 단축키를 해제해 입력 방해 방지; 적용/포커스 종료/창닫기에서 재등록. 두 번째 키는 대기 시간 동안만 등록하고 성공·시간 초과·설정 변경·종료에서 해제. 설정창 이외 앱 입력과 포커스는 유지.
 영향: clock_core/hotkey_core/platform_adapter/main/settings_panel/about_panel, 테스트·README·기록.
@@ -446,13 +446,13 @@ Windows 구현·검증과 공개/배포 전달 완료. 회사 Windows 독립 실
 
 ## R015 — v1.2.0 다크 설정 셀렉트의 흰 영역 제거
 
-요청일: 2026-10-08. 상태: **implementing**.
+요청일: 2026-10-08. 상태: **verified (Windows 실제 검증 / Mac 네이티브 번들 범위, 아래 한계 참조)**.
 의도: 다크 모드 설정 셀렉트의 의도치 않은 흰 영역을 이번 개선에 포함.
 설계: 닫힌 콤보·드롭다운·네이티브 팝업 컨테이너·뷰포트·스크롤바의 palette와 배경/선택/화살표 스타일을 테마 색으로 명시. 영향: settings_panel, 실제 UI/이미지 검사. 수용: 라이트/다크 닫힘·펼침·선택·호버·스크롤 영역의 흰 배경 제거, 기존 드롭다운 포커스/타이머 검사 유지.
 
 ## R016 — v1.2.0 즉시 툴팁·숨기기 아이콘·단일 실행
 
-요청일: 2026-10-08. 상태: **implementing**.
+요청일: 2026-10-08. 상태: **verified (Windows 실제 검증 / Mac 네이티브 번들 범위, 아래 한계 참조)**.
 의도: 아이콘 마우스 오버 시 빠르고 예쁜 위쪽 툴팁, 다운로드처럼 보이지 않는 숨기기, 재실행 시 시계 한 개.
 설계/기본값: 툴팁 인위적 대기 0ms, 아이콘 위 둥근 테마 팝업·화면 경계 안 배치·포커스 비활성·이탈/클릭/숨김 제거. 요청의 0.125ms는 실제 OS 렌더링에서 보장 불가하므로 125ms보다 짧게 반응하는지 검사하고 지연 없이 표시. 숨기기 도안은 아래 화살표를 없애고 일반 최소화 가로선으로 통일.
 - 사용자 설정 경로별 QLockFile + QLocalServer(UserAccessOption)로 단일 인스턴스. 재실행은 로컬 IPC로 기존 시계를 보이게/앞으로 가져오고 두 번째 실행은 종료. 시작 경쟁·남은 잠금/죽은 프로세스·정상 종료/재실행 검사. 인터넷/관리자 권한 불필요. 빌드 검증 모드는 임시 사용자 환경에서 별도 실행.
@@ -461,6 +461,25 @@ Windows 구현·검증과 공개/배포 전달 완료. 회사 Windows 독립 실
 
 ## R017 — 오로라 테마와 v1.2.1 묶음 배포
 
-요청일: 2026-10-08. 상태: **implementing**.
+요청일: 2026-10-08. 상태: **verified (Windows 실제 검증 / Mac 네이티브 번들 범위, 아래 한계 참조)**.
 의도: fancy한 테마를 하나 추가하고 버전을 조금 올린다. 아직 발행하지 않은 R013~R016 v1.2.0 개선 묶음은 이 요청과 함께 v1.2.1로 전달한다.
 설계/기본값: 오로라(aurora) 테마: 남색→보라색 대각 그라데이션 표면, 민트 포인트·밝은 텍스트·푸른 경계/컨트롤. 시계/설정/도움말/메뉴/툴팁에 공통 적용. 새 설치 라이트 기본값은 유지하고 선택 저장. 영향: ui_components/clock_core/settings_panel/app_metadata·이미지/사용법/검증. 수용: 세 테마 × 모든 시간/날짜·크기의 360개 조합, 잘림·알파·선택/포커스·저장·실제 이미지 확인. 배포/설치 버전 1.2.1.
+
+### R011/R013~R017 v1.2.1 최종 검증·전달
+
+- R017에 따라 미발행 v1.2.0 묶음을 v1.2.1로 최종 전달. 소스 커밋 60ce61ebe67055a6aa7ba80ca51c16326cf52c96, canonical main 푸시 완료. 사용자 설정·환경·빌드·실행 파일·레지스트리 백업은 Git 제외.
+- `python -m unittest -v`: 35개 통과. 순수 키 파싱/설정 유지/미사용 바이너리 정책과 기존 시각·시보·모니터 좌표 정책 포함.
+- `smoke_ui.py --capture`: Windows 실제 Qt 360개 조합 통과. 라이트/다크/오로라 × 크기/시간제/초/시간·날짜 프리셋, 글자 잘림·경계 알파, 설정 포커스/열린 목록/타이머, 네이티브 topmost, 전역 두 단계 입력과 설정 변경·끄기, 즉시 툴팁 위치/125ms 이내 표시/포커스 유지/이탈 제거, 어두운 목록·뷰포트·팝업 경계, 메뉴 외부 클릭, 확인 후 종료/취소 검사. 오로라 시계·설정과 다크 드롭다운 이미지를 직접 확인. Qt 네이티브 창의 topmost 힌트도 Win32 상태와 맞춰 목록 창이 always 상태를 되돌리지 않도록 수정.
+- `smoke_audio.py`: Windows 실제 소리 Ready→재생 시작→끝남, 포커스 유지·정각 한 번 호출 통과. 음원과 음량은 v1.1.0 유지.
+- 로컬 격리 `build/hotkey-smoke.py`: 실제 RegisterHotKey 기본 두 단계, 1초 시간 초과와 bare C 해제, 사용자 Ctrl+Alt+F10 복원, 키 선점 실패/해제 후 재등록, 사용 안 함 통과. 별도 앱의 전경을 만드는 `native_recovery_probe.py`는 이번 세션에서 Windows 전경 권한 제한으로 사전 조건에 실패하여 외부 앱→전경 활성화 수용을 다시 검증하지 못함. 이 한계를 숨기지 않으며 기존 v1.1.0의 전경 복원 구현은 유지.
+- 로컬 격리 `build/instance-smoke.py`: 실제 별도 프로세스 재실행으로 숨긴 시계 복원, 동시에 두 보조 실행이 같은 인스턴스에 전달, 테스트 소유 프로세스 종료 후 잠금 회수와 정상 unlock 통과. 설치된 실제 EXE도 재실행 exit=0, 기존 HWND 7540828/PID 25952 그대로 visible, 사용자 시계 창 하나 유지. onefile 부모·자식 두 프로세스는 한 인스턴스임.
+- Windows `build_app.py`/`package_release.py --platform windows-x64`: 제품명/PE FileDescription Floating Clock, ProductVersion 1.2.1, 앱 ID com.yangtaeho.floatingclock, 실제 트레이·정보창·아이콘·PCM WAV와 번들 오디오 재생/끝남 통과.
+- GitHub Actions 37780112021: Windows x64, Mac arm64, Mac x64 세 작업 success. 각 플랫폼 로직 35개·실제 번들 실행·버전·아이콘·Info.plist/LSUIElement(Mac)·오디오 Ready/시작/끝남·30% 이상 크기 축소 검사 통과. Mac offscreen 정보창 두 이미지를 직접 확인.
+- 배포 크기: Windows ZIP 58,732,158→31,574,572 bytes(-46.24%), Mac arm64 DMG 53,178,619→33,891,209(-36.27%), Mac x64 DMG 58,549,641→36,743,694(-37.24%). 필수 Qt Widgets·Network(로컬 IPC)·Multimedia/PCM·한국어·아이콘·원문 라이선스 유지, 사용하지 않는 영상/3D/QML/PDF/소프트웨어 OpenGL 구성만 제외.
+- 정식 공개 릴리스: https://github.com/yangtaeho/floating-clock/releases/tag/v1.2.1 . 대상은 위 테스트 소스 커밋. Windows ZIP·두 Mac DMG와 각 SHA-256 파일 총 6개 업로드, GitHub digest와 로컬 해시 일치 후 draft=false로 발행.
+- Windows ZIP SHA-256 84cb32285d7c9e612590069772dafd3d2f00ebf7acc941368a13d27a13e83865.
+- Mac arm64 DMG SHA-256 4bcd5dfafc89050483a73423ad75f707cb491f8367b9540b63af6bfe22ec63d1.
+- Mac x64 DMG SHA-256 bf10f45a36cfc5521e9d74d32c1f807383f547f7315bd10dde71868f2447ffac.
+- C:/dev/tools 갱신: 교체 직전 해당 EXE 실행 프로세스 없음. 기존 v1.1.0 EXE·바로가기·설정 및 관련 캐시는 C:/dev/tools/backups/FloatingClock-1.1.0-20261008-215353에 백업. 설치 EXE 31,817,918 bytes, SHA-256 aff8f3dee4fd53eac5bcf98068d4ef42d3df6947b0e6ed503da2fb0e8cfa417c, 릴리스 EXE와 일치. 기존 .lnk와 settings.json 해시 보존. 격리 환경에서 설치 경로 --verify-audio 통과 후 사용자 환경으로 실행, 실제 창 확인. 기존 라이트/24시간/위치 선택을 보존하고 오로라를 임의로 켜지 않음.
+- 예전 Python 트레이 캐시: key 9395770847283810984의 Python312/python.exe 경로·UID=0와 tools 항목의 IconSnapshot SHA-256 9ff8b5217de992b4ed57a7e485ca48b69acf601640e928cc26ed1ef51793cf68 일치를 확인. 해당 키와 tools 키를 reg export로 백업 후 그 Python 키 하나만 제거, 기존 IsPromoted=1을 tools 실행 항목에 이전. 제거 완료와 tools IsPromoted=1 재확인. 다른 Python/앱 캐시와 Explorer는 건드리지 않음. Windows 설정 화면 자체의 재렌더링은 사용자 확인 범위.
+- 한계: Mac 실기기 테마·메뉴 막대·단일 실행·포커스·물리 음향, UHD 실제 케이블 분리와 모든 DPI, Apple 개발자 서명/공증은 미검증/미제공. Windows 외부 앱에서 전경 활성화는 위 사전 조건 실패로 이번 세션 재검증 불가. 툴팁은 인위적 지연 0이며 OS 렌더링 0.125ms를 보장하지 않음. UI 검사는 125ms 이내 기준. 소리 청감은 사용자 수용 대상.
