@@ -62,9 +62,9 @@ def run(capture=False):
         assert app.date_label.text() == format_clock(datetime.now().astimezone()).date
         print("Checking Qt display combinations...", flush=True)
         combinations = 0
-        for size, theme, hour, seconds, time_preset, date_preset in product(
-                ("compact", "large"), ("light", "dark", "aurora"), (12, 24), (True, False), TIME_PRESETS, DATE_PRESETS):
-            app.update_preferences(ClockPreferences(size, theme, hour, seconds, time_preset, date_preset))
+        for size, theme, hour, seconds, time_preset, date_preset, scale in product(
+                ("compact", "large"), ("light", "dark", "aurora"), (12, 24), (True, False), TIME_PRESETS, DATE_PRESETS, (80,90,100,120)):
+            app.update_preferences(ClockPreferences(size, theme, hour, seconds, time_preset, date_preset, clock_scale=scale))
             verify_labels(app)
             verify_alpha(app.root)
             assert app.header_label.isVisible() == (size == "large")

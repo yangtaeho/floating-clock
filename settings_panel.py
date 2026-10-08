@@ -121,6 +121,7 @@ class SettingsPanel(RoundedWindow):
         layout.addWidget(self.preview)
         self.labels = []
         self.add_segments(layout, "크기", "size", {"compact": "작게", "large": "크게"})
+        self.add_segments(layout, "크기 비율", "clock_scale", {80: "80%", 90: "90%", 100: "100%", 120: "120%"})
         self.add_segments(layout, "테마", "theme", {"light": "라이트", "dark": "다크", "aurora": "오로라"})
         self.add_segments(layout, "시간제", "hour_cycle", {12: "12시간", 24: "24시간"})
         self.add_segments(layout, "초 표시", "show_seconds", {True: "켜기", False: "끄기"})
@@ -155,6 +156,8 @@ class SettingsPanel(RoundedWindow):
         self.status_label = QLabel()
         layout.addWidget(self.status_label)
         self.hint = QLabel("Ctrl+, 설정 열기/닫기  ·  Esc 닫기")
+        if self.app.hotkey_platform == 'mac':
+            self.hint.setText("⌘+, 설정 열기/닫기  ·  Esc 닫기")
         layout.addWidget(self.hint)
         footer = QHBoxLayout()
         footer.addWidget(button("기본값 복원", app.restore_defaults, self))

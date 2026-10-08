@@ -34,6 +34,7 @@ def load_mode(settings: dict) -> TopmostMode:
 
 def load_preferences(settings: dict) -> ClockPreferences:
     settings = dict(settings)
+    settings.setdefault('clock_scale', 90 if sys.platform == 'darwin' else 100)
     version = settings.get("schema_version", 1)
     if (type(version) is not int or version < 3) and settings.get("date_preset") == "korean_full":
         settings["date_preset"] = "korean_spaced_short"

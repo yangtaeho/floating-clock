@@ -2,7 +2,7 @@
 from pathlib import Path
 
 APP_NAME = "Floating Clock"
-VERSION = "1.2.2"
+VERSION = "1.2.3"
 AUTHOR = "yangtaeho"
 BUNDLE_ID = "com.yangtaeho.floatingclock"
 DESCRIPTION = "Offline desktop clock with an hourly chime"

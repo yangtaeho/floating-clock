@@ -65,6 +65,7 @@ class ClockApp:
         self.tray_available = TrayAdapter.available()
         self.utility_flags = (Qt.Tool if self.tray_available else Qt.Window) | Qt.FramelessWindowHint | Qt.NoDropShadowWindowHint
         self.tray = None
+        self.hotkey_platform = 'mac' if sys.platform == 'darwin' else 'windows'
         QApplication.instance().setQuitOnLastWindowClosed(not self.tray_available)
         self.root = ClockWindow(self)
         self.chime = HourlyChime()
@@ -77,13 +78,14 @@ class ClockApp:
         self.header_label.setFont(QFont("Segoe UI", 9, QFont.Bold))
         self.header.addWidget(self.header_label)
         self.header.addStretch()
-        self.settings_button = IconButton('settings', '설정 (Ctrl+,)', self.toggle_settings, self.root)
+        command = '⌘' if sys.platform == 'darwin' else 'Ctrl'
+        self.settings_button = IconButton('settings', f'설정 ({command}+,)', self.toggle_settings, self.root)
         self.help_button = IconButton('help', '프로그램 정보와 사용법 (F1)', self.show_about, self.root)
         self.hide_button = IconButton('hide', '트레이로 숨기기', self.hide_clock, self.root)
         self.hide_button.setEnabled(self.tray_available)
         if not self.tray_available:
             self.hide_button.setToolTip('이 환경에서는 시스템 트레이를 사용할 수 없습니다')
-        self.close_button = IconButton('close', '프로그램 종료 (Ctrl+Q)', self.close, self.root)
+        self.close_button = IconButton('close', f'프로그램 종료 ({command}+Q)', self.close, self.root)
         self.icon_buttons = [self.settings_button, self.help_button, self.hide_button, self.close_button]
         self.header.setSpacing(2)
         layout.addLayout(self.header)
@@ -128,10 +130,23 @@ class ClockApp:
     def render_clock(self):
         """Update existing labels and layout; never show/activate/recreate windows."""
         compact = self.preferences.size == "compact"
+        scale = self.preferences.clock_scale / 100
+        px = lambda value: max(1, round(value * scale))
+        def font(points, bold=False, family='Malgun Gothic'):
+            result = QFont(family)
+            result.setPointSizeF(points * scale)
+            result.setBold(bold)
+            return result
         self.colors = THEMES[self.preferences.theme]
         colors = self.colors
-        self.root.radius = 12 if compact else 18
+        self.root.radius = (12 if compact else 18) * scale
         self.root.apply_colors(colors)
+        self.header_label.setFont(font(9, True, 'Segoe UI'))
+        for control in self.icon_buttons:
+            edge = max(18, px(24))
+            control.setFixedSize(edge, edge)
+        action_margin, action_gap = px(6), max(2, px(3))
+        compact_right = action_margin + edge * 2 + action_gap + px(3)
         self.header_label.setVisible(not compact)
         self.settings_button.setVisible(not compact)
         self.help_button.setVisible(not compact)
@@ -142,15 +157,15 @@ class ClockApp:
         if not compact:
             for control in self.icon_buttons:
                 self.header.addWidget(control)
-        self.layout.setContentsMargins(12 if compact else 20, 6 if compact else 14,
-                                       60 if compact else 20, 7 if compact else 15)
-        time_font = QFont("Malgun Gothic", 12 if compact else 30, QFont.Bold)
-        date_font = QFont("Malgun Gothic", 8 if compact else 10)
+        self.layout.setContentsMargins(px(12 if compact else 20), px(6 if compact else 14),
+                                       compact_right if compact else px(20), px(7 if compact else 15))
+        time_font = font(12 if compact else 30, True)
+        date_font = font(8 if compact else 10)
         self.time_label.setFont(time_font)
         self.date_label.setFont(date_font)
         self.date_label.setStyleSheet(f"color: {colors['muted']};")
-        self.status_label.setFont(QFont("Malgun Gothic", 8))
-        self.status_label.setStyleSheet(f"color: {colors['accent']}; padding-top: 5px;")
+        self.status_label.setFont(font(8))
+        self.status_label.setStyleSheet(f"color: {colors['accent']}; padding-top: {px(5)}px;")
         self.header_label.setStyleSheet(f"color: {colors['accent']};")
         for control in self.icon_buttons:
             control.update()
@@ -166,12 +181,12 @@ class ClockApp:
         if not compact:
             width = max(width, self.header.sizeHint().width() + left + right,
                         QFontMetrics(self.status_label.font()).horizontalAdvance('자동 · 자동 숨김 켜짐 / 항상 위') + left + right)
-        height = max(56 if compact else 0, self.layout.sizeHint().height())
+        height = max(px(56) if compact else 0, self.layout.sizeHint().height())
         self.root.setFixedSize(width, height)
         self.width, self.height = width, height
         if compact:
-            self.hide_button.move(width - 57, 5)
-            self.close_button.move(width - 30, 5)
+            self.hide_button.move(width - action_margin - edge*2 - action_gap, px(5))
+            self.close_button.move(width - action_margin - edge, px(5))
         for control in (self.hide_button, self.close_button):
             control.show()
             control.raise_()
@@ -266,7 +281,7 @@ class ClockApp:
         self.update_preferences(replace(self.preferences, **{name: value}))
 
     def restore_defaults(self):
-        self.update_preferences(ClockPreferences())
+        self.update_preferences(load_preferences({}))
 
     def preview_chime(self):
         played = self.chime_audio.play()

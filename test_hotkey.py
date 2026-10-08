@@ -2,8 +2,16 @@ import unittest
 from hotkey_core import parse_shortcut, DEFAULT_RECOVERY_SHORTCUT, KeyChord
 from clock_core import ClockPreferences
 from bundle_policy import keep_binary
+from mac_hotkey import native_chord
 
 class ShortcutTests(unittest.TestCase):
+    def test_mac_keys_and_qt_modifier_mapping(self):
+        self.assertEqual(native_chord(parse_shortcut('Ctrl+Alt+Shift+C, C')[0]), (8, 256+2048+512))
+        self.assertEqual(native_chord(parse_shortcut('Meta+J')[0]), (38,4096))
+        self.assertEqual(native_chord(parse_shortcut('Alt+F20')[0]), (90,2048))
+        self.assertEqual(native_chord(parse_shortcut('Ctrl+Left')[0]), (123,256))
+        for shortcut in ('Ctrl+F21','Ctrl+F24'):
+            with self.assertRaises(ValueError): native_chord(parse_shortcut(shortcut)[0])
     def test_default_two_steps(self):
         self.assertEqual(parse_shortcut(DEFAULT_RECOVERY_SHORTCUT), (KeyChord(7, 67), KeyChord(0, 67)))
     def test_custom_single_and_two_steps(self):

@@ -63,7 +63,7 @@ def run():
                         assert geometry(panel, combo) == initial, 'Clock text moved settings controls/scrollbar'
                     for key, value in (('hour_cycle', 24), ('show_seconds', False),
                                        ('time_preset', 'korean'), ('date_preset', 'iso'),
-                                       ('hour_cycle', 12), ('show_seconds', True)):
+                                       ('hour_cycle', 12), ('show_seconds', True), ('clock_scale', 90), ('clock_scale', 100)):
                         app.set_preference(key, value)
                         qt.processEvents()
                         assert geometry(panel, combo) == initial, 'Preference change moved settings controls'

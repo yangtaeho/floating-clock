@@ -37,6 +37,7 @@ jobs:
           "$PY" -m unittest -v
           if [ "$RUNNER_OS" = "macOS" ]; then export QT_QPA_PLATFORM=offscreen; fi
           "$PY" smoke_settings.py
+          if [ "$RUNNER_OS" = "macOS" ]; then QT_QPA_PLATFORM=cocoa "$PY" smoke_mac_hotkey.py; fi
           "$PY" build_app.py
           "$PY" package_release.py --platform '${{ matrix.platform }}'
       - uses: actions/upload-artifact@v4

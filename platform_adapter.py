@@ -104,25 +104,49 @@ class RecoveryHotkey(QAbstractNativeEventFilter):
         super().__init__()
         self.application, self.callback = application, callback
         self.registered = self.armed = self.second_registered = self.suspended = False
-        self.supported = sys.platform == 'win32'
+        self.supported = sys.platform in ('win32', 'darwin')
+        self.mac = None
+        self.unavailable_status = '전역 키 미지원 · 트레이/메뉴 막대에서 복원하세요'
         self.timer = QTimer(application)
         self.timer.setSingleShot(True)
         self.timer.setInterval(1000)
         self.timer.timeout.connect(self.disarm)
-        if self.supported:
+        if sys.platform == 'win32':
             self.user32 = ctypes.WinDLL('user32', use_last_error=True)
             self.user32.RegisterHotKey.argtypes = [wintypes.HWND, ctypes.c_int, wintypes.UINT, wintypes.UINT]
             self.user32.RegisterHotKey.restype = wintypes.BOOL
             self.user32.UnregisterHotKey.argtypes = [wintypes.HWND, ctypes.c_int]
             self.user32.UnregisterHotKey.restype = wintypes.BOOL
             application.installNativeEventFilter(self)
+        elif sys.platform == 'darwin':
+            from mac_hotkey import MacHotkeyBackend
+            try:
+                self.mac = MacHotkeyBackend(self.trigger)
+            except (OSError, AttributeError) as error:
+                self.supported = False
+                self.unavailable_status = f'Mac 전역 키 초기화 실패 · 메뉴 막대에서 복원하세요 ({error})'
         self.configure(shortcut)
+
+    def register_key(self, identifier, chord):
+        if self.mac:
+            return self.mac.register(identifier, chord)
+        return bool(self.user32.RegisterHotKey(None, identifier, chord.modifiers | 0x4000, chord.key))
+
+    def unregister_key(self, identifier):
+        if self.mac:
+            self.mac.unregister(identifier)
+        else:
+            self.user32.UnregisterHotKey(None, identifier)
 
     def configure(self, shortcut):
         self.unregister()
         self.shortcut = shortcut
         try:
             self.chords = parse_shortcut(shortcut)
+            if self.mac:
+                from mac_hotkey import native_chord
+                for chord in self.chords:
+                    native_chord(chord)
         except ValueError as error:
             self.chords = ()
             self.status = str(error)
@@ -132,24 +156,26 @@ class RecoveryHotkey(QAbstractNativeEventFilter):
     def resume(self):
         self.suspended = False
         if not self.supported:
-            self.status = 'Windows 전용 · 메뉴 막대에서 복원하세요'
+            self.status = self.unavailable_status
         elif not self.chords:
             self.status = '사용 안 함 · 트레이에서 복원하세요'
         elif not self.registered:
             first = self.chords[0]
-            self.registered = bool(self.user32.RegisterHotKey(None, self.HOTKEY_ID, first.modifiers | 0x4000, first.key))
-            self.status = '사용 가능' if self.registered else '등록 실패 · 다른 앱이 사용 중일 수 있습니다'
+            self.registered = self.register_key(self.HOTKEY_ID, first)
+            self.status = '사용 가능' if self.registered else (self.mac.last_error if self.mac else '등록 실패 · 다른 앱이 사용 중일 수 있습니다')
 
     def disarm(self):
         self.timer.stop()
         if self.second_registered:
-            self.user32.UnregisterHotKey(None, self.SECOND_ID)
+            self.unregister_key(self.SECOND_ID)
         self.second_registered = self.armed = False
+        if self.registered:
+            self.status = '사용 가능'
 
     def unregister(self):
         self.disarm()
         if self.registered:
-            self.user32.UnregisterHotKey(None, self.HOTKEY_ID)
+            self.unregister_key(self.HOTKEY_ID)
         self.registered = False
 
     def suspend(self):
@@ -170,8 +196,7 @@ class RecoveryHotkey(QAbstractNativeEventFilter):
                 self.disarm()
                 first, second = self.chords
                 if second != first:
-                    self.second_registered = bool(self.user32.RegisterHotKey(None, self.SECOND_ID,
-                                                  second.modifiers | 0x4000, second.key))
+                    self.second_registered = self.register_key(self.SECOND_ID, second)
                 # Repeating the first chord also completes the default C,C gesture.
                 self.armed = True
                 self.timer.start()
@@ -179,7 +204,7 @@ class RecoveryHotkey(QAbstractNativeEventFilter):
                     self.status = '두 번째 키 등록 실패 · 같은 첫 조합을 한 번 더 누르세요'
 
     def nativeEventFilter(self, event_type, message):
-        if self.supported and event_type in (b'windows_generic_MSG', b'windows_dispatcher_MSG'):
+        if sys.platform == 'win32' and event_type in (b'windows_generic_MSG', b'windows_dispatcher_MSG'):
             msg = wintypes.MSG.from_address(int(message))
             if msg.message == 0x0312 and msg.wParam in (self.HOTKEY_ID, self.SECOND_ID):
                 self.trigger(msg.wParam)
@@ -188,6 +213,8 @@ class RecoveryHotkey(QAbstractNativeEventFilter):
 
     def close(self):
         self.unregister()
-        if self.supported:
+        if sys.platform == 'win32':
             self.application.removeNativeEventFilter(self)
+        if self.mac:
+            self.mac.close()
         self.timer.deleteLater()

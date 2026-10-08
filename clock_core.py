@@ -36,6 +36,7 @@ class ClockPreferences:
     mode: str = "auto"
     hourly_chime: bool = True
     recovery_shortcut: str = DEFAULT_RECOVERY_SHORTCUT
+    clock_scale: int = 100
 
     @classmethod
     def from_mapping(cls, values: dict) -> "ClockPreferences":
@@ -44,6 +45,7 @@ class ClockPreferences:
             "size": ("compact", "large"), "theme": ("light", "dark", "aurora"),
             "hour_cycle": (12, 24), "time_preset": tuple(TIME_PRESETS),
             "date_preset": tuple(DATE_PRESETS), "mode": tuple(m.value for m in TopmostMode),
+            "clock_scale": (80, 90, 100, 120),
         }
         clean = {}
         for field in fields(cls):

@@ -105,6 +105,7 @@ class IconButton(QPushButton):
             painter.setBrush(QColor(colors['hover']))
             painter.drawRoundedRect(QRectF(1, 1, self.width()-2, self.height()-2), 6, 6)
         painter.translate(self.width()/2, self.height()/2)
+        painter.scale(self.width()/24, self.height()/24)
         painter.setPen(QPen(QColor(colors['muted'] if self.isEnabled() else colors['subtle']), 1.5,
                             Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
         painter.setBrush(Qt.NoBrush)
@@ -196,8 +197,9 @@ class ContextPopup(RoundedWindow):
         layout.setContentsMargins(8, 8, 8, 8)
         layout.setSpacing(2)
         preferences = app.preferences
+        command = '⌘' if app.hotkey_platform == 'mac' else 'Ctrl'
         choices = [
-            ("설정…                         Ctrl+,", app.toggle_settings),
+            (f"설정…                         {command}+,", app.toggle_settings),
             ("큰 시계로" if preferences.size == "compact" else "작은 시계로",
              lambda: app.set_preference("size", "large" if preferences.size == "compact" else "compact")),
             ("다크 테마로" if preferences.theme == "light" else "라이트 테마로",
@@ -207,7 +209,7 @@ class ContextPopup(RoundedWindow):
             ("초 숨기기" if preferences.show_seconds else "초 표시",
              lambda: app.set_preference("show_seconds", not preferences.show_seconds)),
             ("트레이로 숨기기", app.hide_clock), ("위치 초기화", app.reset_position),
-            ("프로그램 정보…                 F1", app.show_about), ("종료                             Ctrl+Q", app.close),
+            ("프로그램 정보…                 F1", app.show_about), (f"종료                             {command}+Q", app.close),
         ]
         self.buttons = []
         for index, (text, callback) in enumerate(choices):

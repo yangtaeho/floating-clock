@@ -35,6 +35,7 @@ class AboutPanel(RoundedWindow):
         summary.setFont(QFont("Malgun Gothic", 11, QFont.Bold))
         layout.addWidget(summary)
         settings_key = "Cmd+," if sys.platform == "darwin" else "Ctrl+,"
+        quit_key = "Cmd+Q" if sys.platform == "darwin" else "Ctrl+Q"
         tray_name = "메뉴 막대 아이콘" if sys.platform == "darwin" else "트레이 아이콘"
         recovery_key = self.recovery_help()
         self.recovery_line = recovery_key
@@ -45,7 +46,7 @@ class AboutPanel(RoundedWindow):
             f"{settings_key}  설정 열기 / 닫기\n"
             "F1  프로그램 정보와 사용법\n"
             "Esc  열린 메뉴 / 패널 닫기 · 시계만 있으면 종료 확인\n"
-            "Ctrl+Q  프로그램 종료 확인\n"
+            f"{quit_key}  프로그램 종료 확인\n"
             + recovery_key +
             f"{tray_name} 클릭  숨김 / 일반 표시 시계를 앞으로 가져오기\n"
             "두 단계 복원 키는 1초 안에 이어 누르세요. 설정에서 변경/끄기.\n"
@@ -85,7 +86,7 @@ class AboutPanel(RoundedWindow):
         self.close_button.setFocus()
 
     def recovery_help(self):
-        text = self.app.preferences.recovery_shortcut or '사용 안 함'
+        text = QKeySequence(self.app.preferences.recovery_shortcut).toString(QKeySequence.NativeText) or '사용 안 함'
         return f'전역 복원: {text} · {self.app.hotkey.status}\n'
 
     def refresh(self):

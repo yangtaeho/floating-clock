@@ -12,6 +12,18 @@ from settings import load_settings, save_settings, load_mode, load_preferences
 
 
 class ClockTests(unittest.TestCase):
+    def test_scale_migration_and_persistence(self):
+        with patch('settings.sys.platform', 'win32'):
+            self.assertEqual(load_preferences({'schema_version': 3}).clock_scale, 100)
+        with patch('settings.sys.platform', 'darwin'):
+            self.assertEqual(load_preferences({'schema_version': 3}).clock_scale, 90)
+            self.assertEqual(load_preferences({'schema_version': 3, 'clock_scale': 100}).clock_scale, 100)
+        for scale in (80, 90, 100, 120):
+            preferences = ClockPreferences(clock_scale=scale)
+            self.assertEqual(ClockPreferences.from_mapping(preferences.to_mapping()), preferences)
+        for invalid in (0, 200, 80.0, '80', True):
+            self.assertEqual(ClockPreferences.from_mapping({'clock_scale': invalid}).clock_scale, 100)
+
     def test_leap_day_and_midnight(self):
         leap = format_clock(datetime(2024, 2, 29, 0, 0, 1))
         self.assertEqual(leap.time, "오전 12:00:01")
