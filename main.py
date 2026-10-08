@@ -9,15 +9,16 @@ from PySide6.QtGui import QFont, QFontMetrics, QKeySequence, QShortcut, QIcon
 from PySide6.QtWidgets import QApplication, QLabel, QVBoxLayout, QHBoxLayout, QMessageBox
 
 from clock_core import ClockPreferences, TopmostMode, format_clock, next_tick_ms, should_be_topmost, ScreenArea, visible_position
-from platform_adapter import TaskbarMonitor, WindowChrome, RecoveryHotkey
+from platform_adapter import TaskbarMonitor, WindowChrome, RecoveryHotkey, set_app_identity, app_identity
 from settings import load_preferences, load_settings, save_settings
 from ui_components import THEMES, RoundedWindow, ContextPopup, IconButton
 from settings_panel import SettingsPanel
 from chime_core import HourlyChime
 from chime_audio import ChimeAudio
-from app_metadata import APP_NAME, VERSION, AUTHOR, ASSETS
+from app_metadata import APP_NAME, VERSION, AUTHOR, ASSETS, BUNDLE_ID
 from about_panel import AboutPanel
 from tray_adapter import TrayAdapter
+from instance_adapter import InstanceGate
 
 
 class ClockWindow(RoundedWindow):
@@ -44,6 +45,8 @@ class ClockWindow(RoundedWindow):
 
 class ClockApp:
     def __init__(self):
+        self.shell_identity = set_app_identity(BUNDLE_ID)
+        QApplication.instance().setApplicationDisplayName(APP_NAME)
         self.monitor, self.chrome = TaskbarMonitor(), WindowChrome()
         saved = load_settings()
         self.preferences = load_preferences(saved)
@@ -109,7 +112,7 @@ class ClockApp:
         if self.tray_available:
             self.tray = TrayAdapter(self)
         application = QApplication.instance()
-        self.hotkey = RecoveryHotkey(application, self.show_clock)
+        self.hotkey = RecoveryHotkey(application, self.show_clock, self.preferences.recovery_shortcut)
         application.screenAdded.connect(self.schedule_display_recovery)
         application.screenRemoved.connect(self.schedule_display_recovery)
         self.check_displays()
@@ -197,6 +200,10 @@ class ClockApp:
         self.apply_policy()
 
     def apply_topmost(self, window, desired):
+        if self.chrome.supported and window.windowHandle():
+            # Keep Qt's native stacking policy in sync with the OS flag; owned
+            # combo popups can otherwise undo SetWindowPos during WM processing.
+            window.windowHandle().setFlag(Qt.WindowStaysOnTopHint, desired)
         result = self.chrome.set_topmost(int(window.winId()), desired)
         if result is None:  # Portable fallback, used only on a policy change.
             visible = window.isVisible()
@@ -237,8 +244,11 @@ class ClockApp:
         self.status_label.setText(self.status)
         if self.settings_panel:
             self.settings_panel.status_label.setText(self.status)
+            self.settings_panel.update_hotkey_status()
 
     def update_preferences(self, preferences):
+        if preferences.recovery_shortcut != self.preferences.recovery_shortcut:
+            self.hotkey.configure(preferences.recovery_shortcut)
         if preferences.hourly_chime != self.preferences.hourly_chime:
             self.chime.reset()
             if not preferences.hourly_chime:
@@ -434,8 +444,19 @@ if __name__ == "__main__":
     application.setWindowIcon(QIcon(str(ASSETS / "icon.png")))
     application.setFont(QFont("Malgun Gothic", 9))
     application.setStyle("Fusion")
+    gate = None
+    if '--verify-build' not in sys.argv and '--verify-audio' not in sys.argv:
+        gate = InstanceGate()
+        if not gate.claim():
+            if gate.notify():
+                sys.exit(0)
+            QMessageBox.warning(None, APP_NAME, '기존 시계에 연결할 수 없습니다. 잠시 후 다시 실행하세요.')
+            sys.exit(1)
     app = ClockApp()
-    if "--verify-build" in sys.argv:
+    if gate:
+        gate.activate(app.show_clock)
+        application.aboutToQuit.connect(gate.close)
+    if "--verify-build" in sys.argv or "--verify-audio" in sys.argv:
         from pathlib import Path
         import json
         def verify_build():
@@ -445,7 +466,8 @@ if __name__ == "__main__":
             app.show_about()
             application.processEvents()
             app.about_panel.grab().save(str(folder / "packaged-about.png"))
-            (folder / "packaged-verification.json").write_text(json.dumps({
+            report = {
+                "app_identity": app_identity(), "display_name": application.applicationDisplayName(),
                 "version": VERSION, "icon_loaded": not application.windowIcon().isNull(),
                 "about_visible": app.about_panel.isVisible(), "about_version": app.about_panel.version_label.text(),
                 "tray_available": app.tray_available,
@@ -456,7 +478,20 @@ if __name__ == "__main__":
                 "time": app.time_label.text(), "date": app.date_label.text(),
                 "chime_asset_exists": app.chime_audio.path.is_file(),
                 "chime_audio_status": app.chime_audio.effect.status().name
-            }, ensure_ascii=False, indent=2), encoding="utf-8")
-            app.shutdown()
+            }
+            def finish():
+                (folder / "packaged-verification.json").write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+                app.shutdown()
+            if '--verify-audio' in sys.argv:
+                states = []
+                app.chime_audio.effect.playingChanged.connect(lambda: states.append(app.chime_audio.effect.isPlaying()))
+                report['audio_play_requested'] = app.chime_audio.play()
+                def finish_audio():
+                    report['audio_started'] = True in states
+                    report['audio_finished'] = bool(states and states[-1] is False)
+                    finish()
+                QTimer.singleShot(1000, finish_audio)
+            else:
+                finish()
         QTimer.singleShot(1500, verify_build)
     sys.exit(application.exec())

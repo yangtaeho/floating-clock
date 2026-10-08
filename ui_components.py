@@ -1,7 +1,7 @@
 """Qt surfaces: one antialiased boundary, shared theme, stable controls."""
-from PySide6.QtCore import Qt, QRectF, QEvent, QPointF
-from PySide6.QtGui import QColor, QPainter, QPen, QKeySequence, QShortcut, QPolygonF, QFont
-from PySide6.QtWidgets import QWidget, QPushButton, QVBoxLayout, QApplication
+from PySide6.QtCore import Qt, QRectF, QEvent, QPointF, QPoint, QTimer
+from PySide6.QtGui import QColor, QPainter, QPen, QKeySequence, QShortcut, QPolygonF, QFont, QCursor, QLinearGradient
+from PySide6.QtWidgets import QWidget, QPushButton, QVBoxLayout, QApplication, QLabel
 
 THEMES = {
     "light": {"bg": "#F8FAFC", "fg": "#172538", "muted": "#718094", "subtle": "#9AA7B7",
@@ -10,6 +10,9 @@ THEMES = {
     "dark": {"bg": "#171F2E", "fg": "#ECF2FA", "muted": "#9AAAC0", "subtle": "#72839B",
              "accent": "#80D6C7", "hover": "#2A3749", "border": "#2A3547", "panel": "#202B3C",
              "control": "#202B3C", "selected": "#24463F"},
+    "aurora": {"bg": "#19263F", "fg": "#EFF7FF", "muted": "#B0BDD7", "subtle": "#8299BE",
+               "accent": "#98E8CF", "hover": "#304666", "border": "#52688B", "panel": "#20304B",
+               "control": "#263B57", "selected": "#285D60", "gradient_top": "#203C58", "gradient_bottom": "#29233F"},
 }
 
 
@@ -28,7 +31,13 @@ class RoundedWindow(QWidget):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
         painter.setPen(QPen(QColor(self.colors["border"]), 1.0))
-        painter.setBrush(QColor(self.colors["bg"]))
+        if 'gradient_top' in self.colors:
+            gradient = QLinearGradient(0, 0, self.width(), self.height())
+            gradient.setColorAt(0, QColor(self.colors['gradient_top']))
+            gradient.setColorAt(1, QColor(self.colors['gradient_bottom']))
+            painter.setBrush(gradient)
+        else:
+            painter.setBrush(QColor(self.colors["bg"]))
         painter.drawRoundedRect(QRectF(0.5, 0.5, self.width() - 1, self.height() - 1), self.radius, self.radius)
 
     def mousePressEvent(self, event):
@@ -73,11 +82,16 @@ class IconButton(QPushButton):
     def __init__(self, kind, label, callback, parent):
         super().__init__(parent)
         self.kind = kind
+        self.hint = None
+        self.hint_timer = QTimer(self)
+        self.hint_timer.setInterval(16)
+        self.hint_timer.timeout.connect(self.check_hint_position)
         self.setFixedSize(24, 24)
         self.setToolTip(label)
         self.setAccessibleName(label)
         self.setCursor(Qt.PointingHandCursor)
         self.clicked.connect(callback)
+        self.pressed.connect(self.dismiss_hint)
 
     def paintEvent(self, event):
         import math
@@ -96,9 +110,7 @@ class IconButton(QPushButton):
             painter.drawLine(QPointF(-4,-4), QPointF(4,4))
             painter.drawLine(QPointF(-4,4), QPointF(4,-4))
         elif self.kind == 'hide':
-            painter.drawLine(QPointF(-5,5), QPointF(5,5))
-            painter.drawLine(QPointF(0,-5), QPointF(0,1))
-            painter.drawPolyline(QPolygonF([QPointF(-3,-1),QPointF(0,2),QPointF(3,-1)]))
+            painter.drawLine(QPointF(-5,2), QPointF(5,2))
         elif self.kind == 'help':
             painter.drawEllipse(QRectF(-7,-7,14,14))
             painter.setFont(QFont('Segoe UI', 9, QFont.Bold))
@@ -114,11 +126,62 @@ class IconButton(QPushButton):
 
     def enterEvent(self, event):
         self.update()
+        self.dismiss_hint()
+        if self.isEnabled():
+            self.hint = RoundedWindow(self, Qt.ToolTip | Qt.FramelessWindowHint | Qt.NoDropShadowWindowHint |
+                                      Qt.WindowDoesNotAcceptFocus, radius=8)
+            self.hint.setAttribute(Qt.WA_ShowWithoutActivating)
+            self.hint.setAttribute(Qt.WA_DeleteOnClose)
+            self.hint.apply_colors(self.window().colors)
+            layout = QVBoxLayout(self.hint)
+            layout.setContentsMargins(10, 6, 10, 6)
+            label = QLabel(self.toolTip())
+            layout.addWidget(label)
+            self.hint.adjustSize()
+            origin = self.mapToGlobal(QPoint(self.width()//2, 0))
+            bounds = self.screen().availableGeometry()
+            x = max(bounds.left(), min(origin.x()-self.hint.width()//2, bounds.right()-self.hint.width()+1))
+            y = origin.y()-self.hint.height()-7
+            if y < bounds.top():
+                y = self.mapToGlobal(QPoint(0, self.height())).y()+7
+            self.hint.move(x, min(y, bounds.bottom()-self.hint.height()+1))
+            self.hint.show()
+            self.hint_timer.start()
+            QApplication.instance().installEventFilter(self)
         super().enterEvent(event)
 
     def leaveEvent(self, event):
+        self.dismiss_hint()
         self.update()
         super().leaveEvent(event)
+
+    def dismiss_hint(self):
+        self.hint_timer.stop()
+        if self.hint:
+            hint, self.hint = self.hint, None
+            QApplication.instance().removeEventFilter(self)
+            hint.close()
+
+    def check_hint_position(self):
+        if self.hint and not self.rect().contains(self.mapFromGlobal(QCursor.pos())):
+            self.dismiss_hint()
+
+    def eventFilter(self, watched, event):
+        if self.hint and event.type() == QEvent.MouseMove:
+            if hasattr(event, 'globalPosition'):
+                origin = self.mapToGlobal(QPoint(0, 0))
+                if not QRectF(origin.x(), origin.y(), self.width(), self.height()).contains(event.globalPosition()):
+                    self.dismiss_hint()
+        return False
+
+    def hideEvent(self, event):
+        self.dismiss_hint()
+        super().hideEvent(event)
+
+    def event(self, event):
+        if event.type() == QEvent.ToolTip:
+            return True
+        return super().event(event)
 
 
 class ContextPopup(RoundedWindow):

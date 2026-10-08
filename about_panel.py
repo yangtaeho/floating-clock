@@ -36,8 +36,8 @@ class AboutPanel(RoundedWindow):
         layout.addWidget(summary)
         settings_key = "Cmd+," if sys.platform == "darwin" else "Ctrl+,"
         tray_name = "메뉴 막대 아이콘" if sys.platform == "darwin" else "트레이 아이콘"
-        recovery_key = ("Ctrl+Alt+C  다른 앱에서도 시계 앞으로 가져오기\n" if app.hotkey.registered else
-                        "Ctrl+Alt+C  사용 불가 (다른 앱이 사용 중) · 트레이로 복원\n") if sys.platform == 'win32' else ''
+        recovery_key = self.recovery_help()
+        self.recovery_line = recovery_key
         help_text = QLabel(
             "시계를 드래그하면 위치를 옮길 수 있습니다.\n"
             "우클릭 메뉴에서 표시와 설정을 바꿀 수 있습니다.\n"
@@ -48,6 +48,7 @@ class AboutPanel(RoundedWindow):
             "Ctrl+Q  프로그램 종료 확인\n"
             + recovery_key +
             f"{tray_name} 클릭  숨김 / 일반 표시 시계를 앞으로 가져오기\n"
+            "두 단계 복원 키는 1초 안에 이어 누르세요. 설정에서 변경/끄기.\n"
             "아이콘: 설정 · 도움말 · 트레이로 숨기기 · 종료\n"
             "작은 시계에는 숨기기 · 종료 아이콘이 있습니다.\n"
             "모니터 연결이 바뀌면 보이는 화면 안으로 자동 이동합니다.\n\n"
@@ -56,6 +57,7 @@ class AboutPanel(RoundedWindow):
         )
         help_text.setWordWrap(True)
         help_text.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.help_text = help_text
         layout.addWidget(help_text)
         self.muted = [self.version_label, help_text]
         self.github_link = QLabel(f'<a href="{GITHUB_URL}">GitHub · 소스와 다운로드</a> &nbsp; '
@@ -82,7 +84,14 @@ class AboutPanel(RoundedWindow):
         self.activateWindow()
         self.close_button.setFocus()
 
+    def recovery_help(self):
+        text = self.app.preferences.recovery_shortcut or '사용 안 함'
+        return f'전역 복원: {text} · {self.app.hotkey.status}\n'
+
     def refresh(self):
+        line = self.recovery_help()
+        self.help_text.setText(self.help_text.text().replace(self.recovery_line, line))
+        self.recovery_line = line
         self.apply_colors(self.app.colors)
         for label in self.muted:
             label.setStyleSheet(f"color: {self.app.colors['muted']};")

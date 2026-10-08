@@ -1,10 +1,11 @@
 """Stable Qt preferences panel: no widget recreation during changes."""
 from datetime import datetime
 from PySide6.QtCore import Qt, QSignalBlocker, QPointF
-from PySide6.QtGui import QFont, QKeySequence, QShortcut, QPainter, QPen, QColor, QPolygonF
+from PySide6.QtGui import QFont, QKeySequence, QShortcut, QPainter, QPen, QColor, QPolygonF, QPalette
 from PySide6.QtWidgets import (QWidget, QLabel, QVBoxLayout, QHBoxLayout, QComboBox,
-                               QPushButton, QButtonGroup, QFrame, QListView)
+                               QPushButton, QButtonGroup, QFrame, QListView, QKeySequenceEdit, QScrollArea)
 from clock_core import TIME_PRESETS, DATE_PRESETS, format_clock
+from hotkey_core import parse_shortcut
 from ui_components import RoundedWindow, button
 
 
@@ -12,6 +13,13 @@ class ClockComboBox(QComboBox):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.arrow_color = "#718094"
+
+    def showPopup(self):
+        super().showPopup()
+        container = self.view().window()
+        container.setPalette(self.palette())
+        container.setAutoFillBackground(True)
+        container.setStyleSheet(f"background: {self.palette().color(QPalette.Base).name()};")
 
     def paintEvent(self, event):
         super().paintEvent(event)
@@ -22,6 +30,24 @@ class ClockComboBox(QComboBox):
         painter.drawPolyline(QPolygonF([QPointF(x - 4, y - 2), QPointF(x, y + 2), QPointF(x + 4, y - 2)]))
 
 
+class ShortcutEditor(QKeySequenceEdit):
+    def __init__(self, panel):
+        super().__init__(panel)
+        self.panel = panel
+        self.setMaximumSequenceLength(2)
+        self.setAccessibleName('전역 시계 복원 단축키')
+
+    def focusInEvent(self, event):
+        self.panel.app.hotkey.suspend()
+        for shortcut in self.panel.app.shortcuts:
+            shortcut.setEnabled(False)
+        super().focusInEvent(event)
+
+    def focusOutEvent(self, event):
+        super().focusOutEvent(event)
+        self.panel.resume_shortcuts()
+
+
 class SettingsPanel(RoundedWindow):
     def __init__(self, app):
         super().__init__(app.root, flags=app.utility_flags, radius=18)
@@ -30,7 +56,18 @@ class SettingsPanel(RoundedWindow):
         self.setAttribute(Qt.WA_DeleteOnClose)
         self.controls = {}
         self.groups = []
-        layout = QVBoxLayout(self)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        self.scroll = QScrollArea(self)
+        self.scroll.setObjectName('settingsScroll')
+        self.scroll.setFrameShape(QFrame.NoFrame)
+        self.scroll.setWidgetResizable(True)
+        self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.body = QWidget()
+        self.body.setObjectName('settingsBody')
+        self.scroll.setWidget(self.body)
+        outer.addWidget(self.scroll)
+        layout = QVBoxLayout(self.body)
         layout.setContentsMargins(24, 18, 24, 20)
         layout.setSpacing(13)
         header = QHBoxLayout()
@@ -59,7 +96,7 @@ class SettingsPanel(RoundedWindow):
         layout.addWidget(self.preview)
         self.labels = []
         self.add_segments(layout, "크기", "size", {"compact": "작게", "large": "크게"})
-        self.add_segments(layout, "테마", "theme", {"light": "라이트", "dark": "다크"})
+        self.add_segments(layout, "테마", "theme", {"light": "라이트", "dark": "다크", "aurora": "오로라"})
         self.add_segments(layout, "시간제", "hour_cycle", {12: "12시간", 24: "24시간"})
         self.add_segments(layout, "초 표시", "show_seconds", {True: "켜기", False: "끄기"})
         self.add_segments(layout, "정각 시보", "hourly_chime", {True: "켜기", False: "끄기"})
@@ -74,6 +111,22 @@ class SettingsPanel(RoundedWindow):
         self.add_combo(layout, "표시 방식", "mode", {
             "auto": "자동 · 작업 표시줄 연동" if app.monitor.supported else "자동 연동 · Windows 전용",
             "always": "항상 위에 표시", "never": "일반 표시"})
+        shortcut_row = self.row(layout, '전역 복원 키')
+        self.shortcut_editor = ShortcutEditor(self)
+        self.shortcut_editor.setKeySequence(QKeySequence(app.preferences.recovery_shortcut))
+        shortcut_row.addWidget(self.shortcut_editor, 1)
+        self.shortcut_apply = button('적용', self.apply_shortcut, self)
+        shortcut_row.addWidget(self.shortcut_apply)
+        self.shortcut_disable = button('사용 안 함', lambda: app.set_preference('recovery_shortcut', ''), self)
+        shortcut_row.addWidget(self.shortcut_disable)
+        self.hotkey_hint = QLabel('두 단계는 1초 안에 이어 누르세요. 키 입력 후 적용을 누르세요.')
+        self.hotkey_hint.setWordWrap(True)
+        layout.addWidget(self.hotkey_hint)
+        self.hotkey_status = QLabel()
+        self.hotkey_status.setWordWrap(True)
+        layout.addWidget(self.hotkey_status)
+        for control in (self.shortcut_editor, self.shortcut_apply, self.shortcut_disable):
+            control.setEnabled(app.hotkey.supported)
         self.status_label = QLabel()
         layout.addWidget(self.status_label)
         self.hint = QLabel("Ctrl+, 설정 열기/닫기  ·  Esc 닫기")
@@ -84,15 +137,40 @@ class SettingsPanel(RoundedWindow):
         footer.addWidget(button("닫기", self.close, self))
         layout.addLayout(footer)
         self.refresh()
-        self.adjustSize()
-        self.setFixedSize(max(450, self.sizeHint().width()), self.sizeHint().height())
         bounds = app.root.screen().availableGeometry()
+        self.body.adjustSize()
+        self.setFixedSize(max(450, self.body.sizeHint().width() + 16),
+                          min(self.body.sizeHint().height(), bounds.height() - 16))
         x = max(bounds.left(), min(app.root.x() - self.width() - 12, bounds.right() - self.width()))
         y = max(bounds.top(), min(app.root.y(), bounds.bottom() - self.height()))
         self.move(x, y)
         self.show()
         self.activateWindow()
         self.controls["size"][0].setFocus()
+
+    def resume_shortcuts(self):
+        if self.app.closing:
+            return
+        self.app.hotkey.resume()
+        for shortcut in self.app.shortcuts:
+            shortcut.setEnabled(True)
+        self.update_hotkey_status()
+
+    def apply_shortcut(self):
+        text = self.shortcut_editor.keySequence().toString(QKeySequence.PortableText)
+        try:
+            parse_shortcut(text)
+        except ValueError as error:
+            self.hotkey_status.setText(str(error))
+            return
+        if text == self.app.preferences.recovery_shortcut:
+            self.app.hotkey.configure(text)
+            self.update_hotkey_status()
+        else:
+            self.app.set_preference('recovery_shortcut', text)
+
+    def update_hotkey_status(self):
+        self.hotkey_status.setText(self.app.hotkey.status)
 
     def row(self, layout, text):
         row = QHBoxLayout()
@@ -136,6 +214,9 @@ class SettingsPanel(RoundedWindow):
         colors = self.app.colors
         self.apply_colors(colors)
         self.setStyleSheet(self.styleSheet() + f"""
+            QScrollArea#settingsScroll, QWidget#settingsBody {{ background: transparent; }}
+            QLineEdit {{ background: {colors['panel']}; color: {colors['fg']};
+                         border: 1px solid {colors['border']}; border-radius: 7px; padding: 6px; }}
             QFrame#preview {{ background: {colors['panel']}; border: 1px solid {colors['border']}; border-radius: 12px; }}
             QPushButton[segment="true"] {{ background: {colors['control']}; border-radius: 9px; padding: 6px 12px; }}
             QPushButton[segment="true"]:hover {{ background: {colors['hover']}; }}
@@ -145,14 +226,18 @@ class SettingsPanel(RoundedWindow):
                          border-radius: 9px; padding: 8px 12px; padding-right: 28px; }}
             QComboBox:hover {{ border-color: {colors['subtle']}; }}
             QComboBox:focus {{ border-color: {colors['accent']}; }}
-            QComboBox::drop-down {{ border: none; width: 28px; }}
+            QComboBox::drop-down {{ background: transparent; border: none; width: 28px; }}
             QComboBox::down-arrow {{ image: none; border: none; width: 0; height: 0; }}
             QComboBox QAbstractItemView {{ background: {colors['panel']}; color: {colors['fg']};
                 border: 1px solid {colors['border']}; border-radius: 8px; padding: 5px;
                 selection-background-color: {colors['selected']}; selection-color: {colors['accent']}; outline: none; }}
             QComboBox QAbstractItemView::item {{ min-height: 32px; padding-left: 8px; border-radius: 5px; }}
+            QScrollBar:vertical {{ background: {colors['control']}; width: 10px; margin: 2px; }}
+            QScrollBar::handle:vertical {{ background: {colors['subtle']}; border-radius: 4px; min-height: 24px; }}
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ height: 0; }}
+            QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {{ background: transparent; }}
         """)
-        for label in self.labels + [self.description, self.preview_date, self.hint, self.chime_hint]:
+        for label in self.labels + [self.description, self.preview_date, self.hint, self.chime_hint, self.hotkey_hint, self.hotkey_status]:
             label.setStyleSheet(f"color: {colors['muted']};")
         self.status_label.setStyleSheet(f"color: {colors['accent']};")
         for name, controls in self.controls.items():
@@ -163,12 +248,25 @@ class SettingsPanel(RoundedWindow):
                     control.setChecked(control.property("value") == value)
                     del blocker
             else:
+                palette = controls.palette()
+                for role, color in ((QPalette.Window, colors['panel']), (QPalette.Base, colors['panel']),
+                                    (QPalette.Button, colors['panel']), (QPalette.Text, colors['fg']),
+                                    (QPalette.WindowText, colors['fg']), (QPalette.ButtonText, colors['fg']),
+                                    (QPalette.Highlight, colors['selected']), (QPalette.HighlightedText, colors['fg'])):
+                    palette.setColor(role, QColor(color))
+                controls.setPalette(palette)
+                controls.view().setPalette(palette)
+                controls.view().viewport().setPalette(palette)
+                controls.view().viewport().setAutoFillBackground(True)
                 controls.arrow_color = colors["muted"]
                 controls.update()
                 blocker = QSignalBlocker(controls)
                 controls.setCurrentIndex(controls.findData(value))
                 del blocker
         self.status_label.setText(self.app.status)
+        if not self.shortcut_editor.hasFocus():
+            self.shortcut_editor.setKeySequence(QKeySequence(self.app.preferences.recovery_shortcut))
+        self.update_hotkey_status()
         self.update_preview(datetime.now().astimezone())
 
     def update_preview(self, now):
@@ -177,6 +275,7 @@ class SettingsPanel(RoundedWindow):
         self.preview_date.setText(clock.date)
 
     def closeEvent(self, event):
+        self.resume_shortcuts()
         if self.app.settings_panel is self:
             self.app.settings_panel = None
         super().closeEvent(event)

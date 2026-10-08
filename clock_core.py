@@ -2,6 +2,7 @@
 from dataclasses import asdict, dataclass, fields
 from datetime import datetime
 from enum import Enum
+from hotkey_core import DEFAULT_RECOVERY_SHORTCUT, parse_shortcut
 
 
 class TopmostMode(str, Enum):
@@ -34,12 +35,13 @@ class ClockPreferences:
     date_preset: str = "korean_spaced_short"
     mode: str = "auto"
     hourly_chime: bool = True
+    recovery_shortcut: str = DEFAULT_RECOVERY_SHORTCUT
 
     @classmethod
     def from_mapping(cls, values: dict) -> "ClockPreferences":
         defaults = cls()
         choices = {
-            "size": ("compact", "large"), "theme": ("light", "dark"),
+            "size": ("compact", "large"), "theme": ("light", "dark", "aurora"),
             "hour_cycle": (12, 24), "time_preset": tuple(TIME_PRESETS),
             "date_preset": tuple(DATE_PRESETS), "mode": tuple(m.value for m in TopmostMode),
         }
@@ -49,6 +51,11 @@ class ClockPreferences:
             valid = type(value) is type(getattr(defaults, field.name))
             if field.name in choices:
                 valid = valid and value in choices[field.name]
+            if field.name == 'recovery_shortcut' and valid:
+                try:
+                    parse_shortcut(value)
+                except ValueError:
+                    valid = False
             clean[field.name] = value if valid else getattr(defaults, field.name)
         return cls(**clean)
 

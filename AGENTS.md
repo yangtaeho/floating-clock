@@ -13,7 +13,8 @@
 ## 구조와 검증
 
 - `clock_core.py`: 플랫폼 및 UI 의존성이 없는 시간·날짜·설정·표시 정책.
-- `platform_adapter.py`: Windows Shell 등 OS 전용 기능.
+- `platform_adapter.py`: Windows Shell·앱 ID·사용자 지정 전역 키 등 OS 전용 기능. `hotkey_core.py`는 독립 키 정책, `instance_adapter.py`는 사용자별 단일 실행과 로컬 복원.
+- `bundle_policy.py`: 필수 UI/PCM 오디오를 유지하며 미사용 구성 제외. 배포 변경은 실제 번들 오디오와 세 플랫폼 크기를 검사한다.
 - `chime_core.py`: 플랫폼 독립 정각 판정·원본 WAV 생성. `chime_audio.py`: 공통 Qt 비동기 재생 어댑터. 시보 변경은 절전·시각 변경·중복과 실제 재생을 검증한다.
 - `main.py`, `ui_components.py`, `settings_panel.py`: PySide6(Qt) UI와 상호작용. R003부터 Tk UI를 대체한다.
 - `app_metadata.py`: 제품명·버전·작성자 기준. `about_panel.py`: 정보/도움말. `tray_adapter.py`: 시스템 트레이 및 메뉴 막대.
@@ -21,7 +22,7 @@
 - 공개 저장소의 직접 작성한 코드·자산은 PolyForm Noncommercial 1.0.0. 외부 구성 요소의 원래 라이선스는 별도 유지하며 배포판에 LICENSE/THIRD_PARTY_NOTICES와 원문을 포함한다.
 - 배포 변경 시 아이콘, Windows PE 버전, Mac Info.plist, 정보창, 트레이 없는 폴백과 숨김/복원/종료를 확인한다. Mac offscreen CI와 실기기 UI/오디오 검증은 구분한다.
 - Python 외부 의존성은 실행에 필수인 경우에만 추가한다. 빌드 도구는 프로젝트 `.venv`에 둔다.
-- 기능 변경은 관련 로직 테스트와 실제 Qt 창 검증을 수행한다. UI 변경은 작은/큰 크기, 밝은/어두운 테마의 잘림·경계 알파·설정창 포커스를 확인한다.
+- 기능 변경은 관련 로직 테스트와 실제 Qt 창 검증을 수행한다. UI 변경은 작은/큰 크기, 라이트/다크/오로라 테마의 잘림·경계 알파·설정창 포커스를 확인한다.
 - 이 저장소는 시계 전용이다. 원본 학습 HTML은 포함하지 않는다.
 - 사용자 설정과 `.venv`, 빌드 중간 산출물, 실행 파일을 Git에 넣지 않는다. 소스와 빌드 스크립트를 추적한다.
 - 커밋·푸시가 요청되면 확인된 사용자 작성자 정보와 원격을 사용한다. 전역 Git 설정은 변경하지 않는다. 원격 주소나 인증이 없으면 로컬 작업은 끝내고 부족한 정보를 구체적으로 보고한다.

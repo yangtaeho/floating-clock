@@ -2,7 +2,37 @@
 import ctypes
 import sys
 from ctypes import wintypes
-from PySide6.QtCore import QAbstractNativeEventFilter
+from PySide6.QtCore import QAbstractNativeEventFilter, QTimer
+from hotkey_core import parse_shortcut, DEFAULT_RECOVERY_SHORTCUT
+
+
+def set_app_identity(app_id):
+    """Set Shell identity before any clock/tray windows are created."""
+    if sys.platform != 'win32':
+        return None
+    shell = ctypes.WinDLL('shell32')
+    function = shell.SetCurrentProcessExplicitAppUserModelID
+    function.argtypes, function.restype = [wintypes.LPCWSTR], ctypes.c_long
+    result = function(app_id)
+    if result != 0:
+        raise OSError(f'Cannot set Windows application identity: {result:#x}')
+    return app_identity()
+
+
+def app_identity():
+    if sys.platform != 'win32':
+        return None
+    shell, ole = ctypes.WinDLL('shell32'), ctypes.WinDLL('ole32')
+    function = shell.GetCurrentProcessExplicitAppUserModelID
+    function.argtypes, function.restype = [ctypes.POINTER(ctypes.c_wchar_p)], ctypes.c_long
+    value = ctypes.c_wchar_p()
+    if function(ctypes.byref(value)) != 0:
+        return None
+    try:
+        return value.value
+    finally:
+        ole.CoTaskMemFree.argtypes = [ctypes.c_void_p]
+        ole.CoTaskMemFree(ctypes.cast(value, ctypes.c_void_p))
 
 
 class RECT(ctypes.Structure):
@@ -66,34 +96,98 @@ class WindowChrome:
 
 
 class RecoveryHotkey(QAbstractNativeEventFilter):
-    """Windows Ctrl+Alt+C works while the clock is hidden or another app is active."""
+    """One or two native key chords; the second registration has a short lifetime."""
     HOTKEY_ID = 0x4FC1
+    SECOND_ID = 0x4FC2
 
-    def __init__(self, application, callback):
+    def __init__(self, application, callback, shortcut=DEFAULT_RECOVERY_SHORTCUT):
         super().__init__()
         self.application, self.callback = application, callback
-        self.registered = False
-        if sys.platform == 'win32':
+        self.registered = self.armed = self.second_registered = self.suspended = False
+        self.supported = sys.platform == 'win32'
+        self.timer = QTimer(application)
+        self.timer.setSingleShot(True)
+        self.timer.setInterval(1000)
+        self.timer.timeout.connect(self.disarm)
+        if self.supported:
             self.user32 = ctypes.WinDLL('user32', use_last_error=True)
             self.user32.RegisterHotKey.argtypes = [wintypes.HWND, ctypes.c_int, wintypes.UINT, wintypes.UINT]
             self.user32.RegisterHotKey.restype = wintypes.BOOL
             self.user32.UnregisterHotKey.argtypes = [wintypes.HWND, ctypes.c_int]
             self.user32.UnregisterHotKey.restype = wintypes.BOOL
-            # MOD_NOREPEAT | MOD_CONTROL | MOD_ALT, C.
-            self.registered = bool(self.user32.RegisterHotKey(None, self.HOTKEY_ID, 0x4003, 0x43))
-            if self.registered:
-                application.installNativeEventFilter(self)
+            application.installNativeEventFilter(self)
+        self.configure(shortcut)
+
+    def configure(self, shortcut):
+        self.unregister()
+        self.shortcut = shortcut
+        try:
+            self.chords = parse_shortcut(shortcut)
+        except ValueError as error:
+            self.chords = ()
+            self.status = str(error)
+            return
+        self.resume()
+
+    def resume(self):
+        self.suspended = False
+        if not self.supported:
+            self.status = 'Windows 전용 · 메뉴 막대에서 복원하세요'
+        elif not self.chords:
+            self.status = '사용 안 함 · 트레이에서 복원하세요'
+        elif not self.registered:
+            first = self.chords[0]
+            self.registered = bool(self.user32.RegisterHotKey(None, self.HOTKEY_ID, first.modifiers | 0x4000, first.key))
+            self.status = '사용 가능' if self.registered else '등록 실패 · 다른 앱이 사용 중일 수 있습니다'
+
+    def disarm(self):
+        self.timer.stop()
+        if self.second_registered:
+            self.user32.UnregisterHotKey(None, self.SECOND_ID)
+        self.second_registered = self.armed = False
+
+    def unregister(self):
+        self.disarm()
+        if self.registered:
+            self.user32.UnregisterHotKey(None, self.HOTKEY_ID)
+        self.registered = False
+
+    def suspend(self):
+        self.unregister()
+        self.suspended = True
+        self.status = '키 입력 중 · 적용 또는 입력 종료 후 등록'
+
+    def trigger(self, hotkey_id):
+        if hotkey_id == self.SECOND_ID and self.armed:
+            self.disarm()
+            self.callback()
+        elif hotkey_id == self.HOTKEY_ID and self.registered:
+            if len(self.chords) == 1 or (self.armed and self.chords[1].key == self.chords[0].key
+                                       and self.chords[1].modifiers in (0, self.chords[0].modifiers)):
+                self.disarm()
+                self.callback()
+            else:
+                self.disarm()
+                first, second = self.chords
+                if second != first:
+                    self.second_registered = bool(self.user32.RegisterHotKey(None, self.SECOND_ID,
+                                                  second.modifiers | 0x4000, second.key))
+                # Repeating the first chord also completes the default C,C gesture.
+                self.armed = True
+                self.timer.start()
+                if second != first and not self.second_registered:
+                    self.status = '두 번째 키 등록 실패 · 같은 첫 조합을 한 번 더 누르세요'
 
     def nativeEventFilter(self, event_type, message):
-        if self.registered and event_type in (b'windows_generic_MSG', b'windows_dispatcher_MSG'):
+        if self.supported and event_type in (b'windows_generic_MSG', b'windows_dispatcher_MSG'):
             msg = wintypes.MSG.from_address(int(message))
-            if msg.message == 0x0312 and msg.wParam == self.HOTKEY_ID:
-                self.callback()
+            if msg.message == 0x0312 and msg.wParam in (self.HOTKEY_ID, self.SECOND_ID):
+                self.trigger(msg.wParam)
                 return True, 0
         return False, 0
 
     def close(self):
-        if self.registered:
+        self.unregister()
+        if self.supported:
             self.application.removeNativeEventFilter(self)
-            self.user32.UnregisterHotKey(None, self.HOTKEY_ID)
-            self.registered = False
+        self.timer.deleteLater()

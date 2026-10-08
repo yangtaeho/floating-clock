@@ -15,7 +15,17 @@ a = Analysis([str(project / 'main.py')], pathex=[str(project)],
              binaries=[], datas=[(str(project / 'assets' / 'hourly-chime.wav'), 'assets'),
                                  (str(project / 'assets' / 'icon.png'), 'assets')],
              hiddenimports=[], hookspath=[], hooksconfig={},
-             runtime_hooks=[], excludes=[], noarchive=False)
+             runtime_hooks=[], excludes=['PySide6.QtQuick', 'PySide6.QtQml',
+                 'PySide6.QtPdf', 'PySide6.QtOpenGL', 'PySide6.QtMultimediaWidgets'], noarchive=False)
+# This application renders QWidget + PNG and plays PCM through QSoundEffect.
+# Its audio devices/sink are built into Qt Multimedia; media/codec plugins,
+# QML/Quick/PDF/3D and OpenGL rasterizers are not used.
+from bundle_policy import keep_binary
+import json
+removed = [entry for entry in a.binaries if not keep_binary(entry[0])]
+a.binaries = [entry for entry in a.binaries if keep_binary(entry[0])]
+(project / 'build/bundle-pruning.json').write_text(json.dumps(
+    {'removed': [entry[0] for entry in removed], 'kept': [entry[0] for entry in a.binaries]}, indent=2))
 if sys.platform == 'win32':
     # Qt's Windows build imports the unversioned Windows ICU API. A different
     # program on PATH may provide icuuc.dll with versioned exports instead.
@@ -45,7 +55,7 @@ if __name__ == "__main__":
     folder = project / "build"
     folder.mkdir(exist_ok=True)
     parts = tuple(int(part) for part in VERSION.split('.')) + (0,)
-    strings = {'CompanyName': AUTHOR, 'FileDescription': DESCRIPTION,
+    strings = {'CompanyName': AUTHOR, 'FileDescription': APP_NAME,
                'FileVersion': VERSION, 'ProductName': APP_NAME, 'ProductVersion': VERSION,
                'OriginalFilename': 'FloatingClock.exe'}
     resource = "VSVersionInfo(ffi=FixedFileInfo(filevers=" + repr(parts) + ", prodvers=" + repr(parts) + ", mask=0x3f, flags=0, OS=0x40004, fileType=1, subtype=0, date=(0,0)), kids=[StringFileInfo([StringTable('040904B0', [" + ','.join('StringStruct(' + repr(k) + ',' + repr(v) + ')' for k,v in strings.items()) + "])]), VarFileInfo([VarStruct('Translation', [1033, 1200])])])"

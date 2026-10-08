@@ -63,7 +63,7 @@ def run(capture=False):
         print("Checking Qt display combinations...", flush=True)
         combinations = 0
         for size, theme, hour, seconds, time_preset, date_preset in product(
-                ("compact", "large"), ("light", "dark"), (12, 24), (True, False), TIME_PRESETS, DATE_PRESETS):
+                ("compact", "large"), ("light", "dark", "aurora"), (12, 24), (True, False), TIME_PRESETS, DATE_PRESETS):
             app.update_preferences(ClockPreferences(size, theme, hour, seconds, time_preset, date_preset))
             verify_labels(app)
             verify_alpha(app.root)
@@ -99,6 +99,7 @@ def run(capture=False):
         assert qt.activeWindow() is panel and qt.focusWidget() is panel.chime_preview_button
         for name in ("time_preset", "date_preset", "mode"):
             combo = panel.controls[name]
+            panel.scroll.ensureWidgetVisible(combo)
             combo.setFocus()
             initial = combo.currentIndex()
             QTest.mouseClick(combo, Qt.LeftButton, pos=QPoint(combo.width() - 12, combo.height() // 2))
@@ -115,13 +116,14 @@ def run(capture=False):
             assert qt.focusWidget() is combo, f"{name} lost focus"
         for mode, expected in (("always", True), ("never", False)):
             combo = panel.controls["mode"]
+            panel.scroll.ensureWidgetVisible(combo)
             combo.setFocus()
             app.set_preference("mode", mode)
             qt.processEvents()
             QTest.qWait(1100)  # Let native popup cleanup and policy repair finish.
             assert qt.activeWindow() is panel and qt.focusWidget() is combo
             if sys.platform == "win32":
-                assert native_topmost(app) == expected, f"Native topmost for {mode}: {native_topmost(app)}"
+                assert native_topmost(app) == expected, f"Native topmost for {mode}: {native_topmost(app)}, preference={app.preferences.mode}, cached={app.topmost}"
         assert save.call_args.args[0]["schema_version"] == 3
         QTest.keyClick(panel, Qt.Key_Comma, Qt.ControlModifier)
         qt.processEvents()
@@ -217,7 +219,7 @@ def run(capture=False):
         if capture:
             folder = Path("previews")
             folder.mkdir(exist_ok=True)
-            for size, theme in product(("compact", "large"), ("light", "dark")):
+            for size, theme in product(("compact", "large"), ("light", "dark", "aurora")):
                 app.update_preferences(replace(ClockPreferences(), size=size, theme=theme))
                 qt.processEvents()
                 app.root.grab().save(str(folder / f"{size}-{theme}.png"))
@@ -260,15 +262,83 @@ def run(capture=False):
             app.hide_clock()
             if app.hotkey.registered:
                 user = ctypes.WinDLL('user32')
-                for key in (0x11, 0x12, 0x43):
+                for key in (0x11, 0x12, 0x10, 0x43):
                     user.keybd_event(key, 0, 0, 0)
-                for key in (0x43, 0x12, 0x11):
+                for key in (0x43, 0x10, 0x12, 0x11):
                     user.keybd_event(key, 0, 2, 0)
                 QTest.qWait(150)
-                assert app.root.isVisible(), 'Native global hotkey did not restore hidden clock'
+                assert not app.root.isVisible(), 'First step must not restore'
+                user.keybd_event(0x43, 0, 0, 0)
+                user.keybd_event(0x43, 0, 2, 0)
+                QTest.qWait(150)
+                assert app.root.isVisible(), 'Native global sequence did not restore hidden clock'
             app.show_clock()
+        # Configurable hotkey input suspends native and app shortcuts.
+        app.toggle_settings()
+        panel = app.settings_panel
+        panel.scroll.ensureWidgetVisible(panel.shortcut_editor)
+        panel.shortcut_editor.setFocus()
+        qt.processEvents()
+        assert not app.hotkey.registered and app.hotkey.suspended
+        panel.shortcut_editor.setKeySequence('Ctrl+Alt+F10')
+        QTest.mouseClick(panel.shortcut_apply, Qt.LeftButton)
+        qt.processEvents()
+        assert app.preferences.recovery_shortcut == 'Ctrl+Alt+F10'
+        assert app.hotkey.registered and save.call_args.args[0]['recovery_shortcut'] == 'Ctrl+Alt+F10'
+        QTest.mouseClick(panel.shortcut_disable, Qt.LeftButton)
+        qt.processEvents()
+        assert app.preferences.recovery_shortcut == '' and not app.hotkey.registered
+        app.restore_defaults()
+        panel.close()
+        # Tooltip is immediate, above the icon, themed and does not steal focus.
+        from time import perf_counter
+        from PySide6.QtGui import QCursor
+        for theme in ('light', 'dark'):
+            app.set_preference('theme', theme)
+            app.root.move(200, 250)
+            app.root.activateWindow()
+            app.root.setFocus()
+            QTest.qWait(50)
+            control = app.help_button if app.help_button.isVisible() else app.hide_button
+            QCursor.setPos(app.root.mapToGlobal(QPoint(8,40)))
+            QTest.mouseMove(app.root, QPoint(8,40))
+            QTest.qWait(30)
+            began = perf_counter()
+            QCursor.setPos(control.mapToGlobal(QPoint(12, 12)))
+            QTest.mouseMove(app.help_button if app.help_button.isVisible() else app.hide_button, QPoint(12, 12))
+            QTest.qWait(20)
+            qt.processEvents()
+            control = app.help_button if app.help_button.isVisible() else app.hide_button
+            hint = control.hint
+            assert hint and hint.isVisible()
+            assert (perf_counter()-began)*1000 < 125
+            assert hint.geometry().bottom() < control.mapToGlobal(QPoint(0,0)).y()
+            assert qt.activeWindow() is app.root
+            assert hint.colors == app.colors
+            if capture:
+                hint.grab().save(f'previews/tooltip-{theme}.png')
+            QCursor.setPos(app.root.mapToGlobal(QPoint(8, 40)))
+            QTest.mouseMove(app.root, QPoint(8, 40))
+            QTest.qWait(40)
+            qt.processEvents()
+            assert control.hint is None
+        # Closed and opened dark selectors use a dark palette including popup frame.
+        app.toggle_settings()
+        panel=app.settings_panel
+        from PySide6.QtGui import QPalette
+        for name in ('time_preset','date_preset','mode'):
+            combo=panel.controls[name]
+            panel.scroll.ensureWidgetVisible(combo)
+            combo.showPopup()
+            qt.processEvents()
+            assert combo.view().viewport().palette().color(QPalette.Base).lightness() < 100
+            assert combo.view().window().palette().color(QPalette.Window).lightness() < 100
+            if capture:
+                combo.view().window().grab().save(f'previews/selector-{name}-dark.png')
+            combo.hidePopup()
+        panel.close()
         # Actual mouse presses outside popup must clear its lifetime reference.
-        app.popup(QPoint(100, 100))
+        app.popup(app.root.mapToGlobal(QPoint(app.root.width()+30, 0)))
         qt.processEvents()
         QTest.mouseClick(app.root, Qt.LeftButton, pos=QPoint(12, 35))
         qt.processEvents()

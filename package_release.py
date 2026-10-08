@@ -53,12 +53,14 @@ def main():
         env = dict(os.environ, LOCALAPPDATA=scratch, HOME=scratch)
         if mac:
             env['QT_QPA_PLATFORM'] = 'offscreen'
-        subprocess.run([str(executable), '--verify-build'], env=env, check=True, timeout=90)
+        subprocess.run([str(executable), '--verify-audio'], env=env, check=True, timeout=90)
     data = json.loads(report.read_text(encoding='utf-8'))
     assert data['visible'] and data['width'] > 0 and data['height'] > 0, data
     assert data['time'] and data['date'] and data['chime_asset_exists'], data
     assert data['version'] == VERSION and data['icon_loaded'] and data['about_visible'], data
-    assert VERSION in data['about_version'], data
+    assert VERSION in data['about_version'] and data['display_name'] == 'Floating Clock', data
+    if data['chime_audio_status'] == 'Ready':
+        assert data['audio_play_requested'] and data['audio_started'] and data['audio_finished'], data
     if mac:
         with (root/'dist/FloatingClock.app/Contents/Info.plist').open('rb') as stream:
             info = plistlib.load(stream)
@@ -75,6 +77,8 @@ def main():
                     strings.update(table.entries)
         assert strings[b'ProductVersion'].decode('utf-8') == VERSION, strings
         assert strings[b'ProductName'].decode('utf-8') == 'Floating Clock', strings
+        assert strings[b'FileDescription'].decode('utf-8') == 'Floating Clock', strings
+        assert data['app_identity'] == BUNDLE_ID, data
         assert any(entry.id == 14 for entry in pe.DIRECTORY_ENTRY_RESOURCE.entries), 'Missing Windows icon'
         pe.close()
     # CI machines may have no audio output device; don't claim audible playback.
@@ -106,6 +110,10 @@ def main():
             bundle.writestr('READ-ME.txt', instructions)
             for source, name in notices:
                 bundle.write(source, name)
+    baseline = {'windows-x64': 58732158, 'macos-arm64': 53178619, 'macos-x64': 58549641}[args.platform]
+    size = archive.stat().st_size
+    assert size <= baseline * 0.70, 'Standalone package size reduction must be at least 30%'
+    (root/'build/packaged-size.json').write_text(json.dumps({'platform':args.platform, 'bytes':size, 'v1_1_0_bytes':baseline, 'reduction_percent':round((1-size/baseline)*100,2)},indent=2),encoding='utf-8')
     digest = hashlib.sha256(archive.read_bytes()).hexdigest()
     (output / f'{archive.name}.sha256').write_text(f'{digest}  {archive.name}\n', encoding='utf-8')
     print(f'Verified and packaged: {archive.name} sha256={digest}')
