@@ -9,6 +9,9 @@
 
 ## 현재 유효한 제품 결정
 
+- **R009 저장소 기준**: 학습은 `yangtaeho/study-vibe-coding-production-principles`, 시계는 `yangtaeho/floating-clock`. standalone 이름은 시계 저장소로 통합됨. 아래 R003/R006의 당시 원격 이름은 역사적 기록이다.
+
+
 - 목적: Windows 작업 표시줄 자동 숨김 때문에 시간 확인이 불편할 때 사용하는 작은 데스크톱 시계.
 - Windows 실행 파일 제공. Mac 포팅을 위해 로직·OS 어댑터·UI를 분리. R003부터 UI는 PySide6(Qt).
 - Windows 자동 모드는 작업 표시줄의 **자동 숨기기 설정**을 감지한다. 실제 순간적인 펼침/접힘과는 구분한다.
@@ -311,3 +314,29 @@ R003 이후에도 `요청일 / 요청 분석 / 결정한 설계 / 항목별 ID·
 - macOS x64 DMG SHA-256: 1ca35c5369c78a89de6dd91b2275399eacef6c8be22627c193c6bb3ad628302a.
 - Windows는 ZIP 압축 해제 후 EXE 실행. Mac은 DMG를 열고 앱을 Applications로 복사. Python/Qt 별도 설치 불필요. Mac 개발자 인증서 서명/공증 없음; 실행 차단 시 기기 보안 설정에서 해당 앱 허용 필요 가능. Mac 실기기 수용·이전 OS·다중 모니터 및 다양한 DPI는 남은 한계다.
 - Git 전달: 소스와 지침·요청 기록·검증 이미지만 추적. 개인 설정/.venv/빌드 결과/인증 제외. 작성자와 원격은 확인된 yangtaeho 계정을 사용했고 전역 설정은 변경하지 않았다.
+
+## R009 — 학습 저장소와 시계 저장소의 역할·이름 정정
+
+요청일: 2026-10-08 (Asia/Seoul). 상태: **implementing**.
+
+### 사용자 의도와 요구
+
+`desktop-clock` 외의 학습 파일은 한 저장소로, 시계 파일만 `floating-clock` 저장소로 관리한다. 잘못 추가된 `floating-clock-standalone`은 시계의 최종 기능과 배포판까지 `floating-clock`으로 통합한다. R006의 원격 이름과 혼합 저장소 보존 정책을 이 요청으로 대체한다.
+
+### 설계와 기본값
+
+- 현재 혼합 원격(id 1408915425)을 `study-vibe-coding-production-principles`로 이름 변경하고 최신 트리에서 desktop-clock 파일을 분리한다. 학습 HTML은 바이트 그대로 보존한다.
+- 현재 최종 시계 전용 원격(id 1408945050)을 `floating-clock`으로 이름 변경한다. 기존 v1.0.0 릴리스, 6개 배포/체크섬 파일, CI 기록, 태그, 아이콘·정보창·트레이 소스를 그대로 유지한다. 새 중복 저장소를 만들거나 원격 이력을 강제 덮어쓰지 않는다.
+- 두 저장소 모두 비공개 유지. 기존 혼합 이력은 학습 저장소에 보존하고 시계 전용 이력은 시계 저장소에서 이어간다. Git bundle로 양쪽 이력을 로컬 백업한다.
+- 학습 폴더의 구형 desktop-clock 디렉터리는 새 시계 저장소의 Git 제외 build/legacy-desktop-clock로 이동 보관한다. 학습 루트 README/AGENTS는 학습용으로 조정한다. 시계 README/출처/현재 링크는 canonical 원격을 사용한다. 역사적 요청 기록은 삭제하지 않고 이 정정 항목을 추가한다.
+- 영향: 두 저장소 원격 주소, 학습 tracked desktop-clock 제거, 두 README/AGENTS/REQUEST_LEDGER, 시계 EXTRACTION.json. 시계 실행 코드와 배포 바이너리는 변경 없음.
+
+| ID | 항목 | 상태 | 수용 기준 |
+|---|---|---|---|
+| R009-01 | 학습 분리 | planned | 학습 main에 시계 소스 없음, 원본 HTML SHA-256 일치, 지침/문서 적합 |
+| R009-02 | floating-clock 통합 | planned | 최종 시계 원격의 이름/ID 확인, 시계 전용 트리, standalone 중복 이름 없음 |
+| R009-03 | 배포와 Git 전달 | planned | v1.0.0 태그/6개 자산 digest 유지, 두 로컬·원격 main 일치 |
+
+### 검증 및 전달
+
+설계 기록 완료. 구현 전.

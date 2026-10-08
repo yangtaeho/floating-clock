@@ -1,5 +1,5 @@
 {
-  "source_repository": "https://github.com/yangtaeho/floating-clock.git",
+  "source_repository": "https://github.com/yangtaeho/study-vibe-coding-production-principles.git",
   "source_commit": "64d5f8e3347af2034703ade5238901ce5e37c219",
   "files": {
     ".gitignore": "48830a57b232ce16d0349d4e687756734f7052fc0a1ad3b37355570feeb237c1",
@@ -33,5 +33,9 @@
     "test_clock.py": "04fd4f0c2225f83ab976bdb53d6530779b8302a3583f29499bafe157fc0f92af",
     "ui_components.py": "df58e43da6596c2eb4b217fcc30104101dca01879b8168428a9a4875363be53b"
   },
-  "note": "README and .gitignore intentionally adapted; clock runtime sources/assets copied byte-for-byte."
+  "note": "README and .gitignore intentionally adapted; clock runtime sources/assets copied byte-for-byte.",
+  "original_source_repository_name": "https://github.com/yangtaeho/floating-clock.git",
+  "source_repository_id": 1408915425,
+  "canonical_clock_repository": "https://github.com/yangtaeho/floating-clock.git",
+  "clock_repository_id": 1408945050
 }
