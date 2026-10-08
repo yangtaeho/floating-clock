@@ -317,7 +317,7 @@ R003 이후에도 `요청일 / 요청 분석 / 결정한 설계 / 항목별 ID·
 
 ## R009 — 학습 저장소와 시계 저장소의 역할·이름 정정
 
-요청일: 2026-10-08 (Asia/Seoul). 상태: **implementing**.
+요청일: 2026-10-08 (Asia/Seoul). 상태: **verified**.
 
 ### 사용자 의도와 요구
 
@@ -333,10 +333,16 @@ R003 이후에도 `요청일 / 요청 분석 / 결정한 설계 / 항목별 ID·
 
 | ID | 항목 | 상태 | 수용 기준 |
 |---|---|---|---|
-| R009-01 | 학습 분리 | planned | 학습 main에 시계 소스 없음, 원본 HTML SHA-256 일치, 지침/문서 적합 |
-| R009-02 | floating-clock 통합 | planned | 최종 시계 원격의 이름/ID 확인, 시계 전용 트리, standalone 중복 이름 없음 |
-| R009-03 | 배포와 Git 전달 | planned | v1.0.0 태그/6개 자산 digest 유지, 두 로컬·원격 main 일치 |
+| R009-01 | 학습 분리 | verified | 학습 main에 시계 소스 없음, 원본 HTML SHA-256 일치, 지침/문서 적합 |
+| R009-02 | floating-clock 통합 | verified | 최종 시계 원격의 이름/ID 확인, 시계 전용 트리, standalone 중복 이름 없음 |
+| R009-03 | 배포와 Git 전달 | verified | v1.0.0 태그/6개 자산 digest 유지, 두 로컬·원격 main 일치 |
 
 ### 검증 및 전달
 
-설계 기록 완료. 구현 전.
+- GitHub API로 canonical 원격 이름과 ID 검증: 학습 id=1408915425, 시계 id=1408945050. 양쪽 비공개 유지. 계정 저장소 목록에 standalone 이름 없음(이전 URL은 GitHub 리디렉션일 수 있으나 별도 저장소가 아님).
+- 학습 원격 루트: .gitattributes, .gitignore, 원본 HTML, AGENTS.md, README.md, docs만 존재. tracked desktop-clock 30개 파일 제거 완료. 학습 HTML의 이전 SHA-256 일치 확인.
+- 시계 원격 루트에는 최종 앱·아이콘·F1 정보창·트레이·검증/빌드 파일만 존재. 시계 수정 파일은 README/EXTRACTION/REQUEST_LEDGER 문서뿐이며 실행 코드와 자산의 변경 없음. 따라서 기능 테스트·재빌드는 이번 구조 수정의 필수 검증 범위가 아니다. 기존 플랫폼 검증 한계는 R006~R008 그대로다.
+- 원본 desktop-clock 전체(소스/기존 환경/산출물)는 `C:/dev/workspace-codex/floating-clock/build/legacy-desktop-clock`로 이동 보관. 두 저장소의 Git bundle을 `build/repository-reorg-backups`에 보관하고 학습 bundle 검증 성공. 이 보관 파일들은 Git에 제외됨.
+- v1.0.0 릴리스 새 주소: https://github.com/yangtaeho/floating-clock/releases/tag/v1.0.0 . 태그는 기존 최종 기능 커밋 4db00813789ae609911afc3c5b273c0f8a868ef6을 유지한다. Windows ZIP·두 Mac DMG 및 세 체크섬 파일 총 6개의 GitHub digest가 변경 전과 일치.
+- Git 전달: 학습 구조 정리 커밋 7ade96aac5359d3f5e44ea56ff61415e4211fe37, 시계 이름/링크 정리 커밋 75ff828a4ef40f372a41626a3e09db142f89ec99를 각각 올바른 원격에 푸시하고 로컬/원격 main 일치 확인. 이 완료 기록은 후속 문서 커밋에 전달한다.
+- 혼합 이력을 강제로 재작성하지 않았으므로 학습 저장소의 과거 커밋에는 시계 파일이 남아 있다. 최신 트리에는 시계 파일이 없고, 시계 전용 저장소는 분리된 이력으로 계속 개발한다.
