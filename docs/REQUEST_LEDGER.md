@@ -352,7 +352,7 @@ R003 이후에도 `요청일 / 요청 분석 / 결정한 설계 / 항목별 ID·
 
 ## R010 — v1.1.0 공개 배포와 다중 모니터·접근성·UI·시보 개선
 
-요청일: 2026-10-08 (Asia/Seoul). 상태: **implementing**.
+요청일: 2026-10-08 (Asia/Seoul). 상태: **verified (Windows 실제 UI·오디오 및 Mac 네이티브 패키지 범위)**.
 
 ### 사용자 의도와 요구
 
@@ -372,22 +372,35 @@ floating-clock을 공개하고 비상업적 사용·수정·배포를 허용하�
 
 | ID | 항목 | 상태 | 수용 기준 |
 |---|---|---|---|
-| R010-01 | 공개·라이선스·기여 | implementing | 원격 private=false, Issues/PR 사용 가능, 라이선스·안내·템플릿 포함 |
+| R010-01 | 공개·라이선스·기여 | verified | 원격 private=false, Issues/PR 사용 가능, 라이선스·안내·템플릿 포함 |
 | R010-02 | 화면 복구·다시 표시 | verified | 음수/분리/작업영역 코어 검사, 실제 창 복구·전역 핫키·트레이, 기존 유효 위치 보존 |
 | R010-03 | 포맷·아이콘·메뉴 | verified | 240개 조합·양쪽 테마·버튼/툴팁·포커스·팝업 클릭 검사 |
 | R010-04 | 종료 확인·도움말 | verified | 취소/종료/중복 확인창·각 종료 경로, 링크·사용법 |
 | R010-05 | 시보 | verified | PCM 두 동일 음·페이드·무음 꼬리, 정각/절전/시각 변경 회귀·실제 오디오 |
-| R010-06 | 배포·Git 전달 | implementing | Windows x64/두 Mac v1.1.0 독립 실행 빌드·메타데이터/자산 확인, 릴리스·체크섬 |
+| R010-06 | 배포·Git 전달 | verified | Windows x64/두 Mac v1.1.0 독립 실행 빌드·메타데이터/자산 확인, 릴리스·체크섬 |
 
 ### 검증 및 전달
 
-Windows 구현·검증 완료, 공개/배포 전달 진행 중. 회사 Windows 독립 실행은 사용자 확인. 실제 UHD 케이블 분리와 Mac 실기기 수용은 현재 환경에서 미검증으로 구분한다.
+Windows 구현·검증과 공개/배포 전달 완료. 회사 Windows 독립 실행은 사용자 확인. 실제 UHD 케이블 분리와 Mac 실기기 수용은 현재 환경에서 미검증으로 구분한다.
 
 
 - Windows 로직 29개 통과: 정각 중복/절전/시각 변경, 음수 모니터 좌표·분리·부분 노출·작업 영역·가장 가까운 화면·큰 창, 두 음/페이드/꼬리 검사.
 - Windows 실제 Qt UI 240개 조합·경계 알파·레이블 잘림·설정 포커스·목록 유지, F1/링크, 포맷별 폭 축소, 창 화면 밖 이동 후 복구/저장, 네이티브 전역 핫키/트레이 복원, 팝업 시계/밖 클릭, 종료 요청별 취소·중복 방지·확정 종료 통과. 4개 테마/크기와 도움말·확인창 이미지를 직접 확인.
 - smoke_audio.py: 실제 Windows 오디오 Ready→재생→끝남, 포커스 유지 및 정각 1회 호출 통과. 음량 0.5 보존. '명료한 삐삐'의 최종 청감은 사용자 수용을 기다림.
 - 공개 전 모든 이력의 68개 Git blob을 인증 키/비밀 값 패턴으로 검사: 발견 경로 없음. tracked 사용자 설정/환경/빌드/인증 파일 없음. 공개 허용은 사용자 요청에 근거함.
+
+- 별도 프로세스의 실제 전경 창에서 네이티브 Ctrl+Alt+C를 입력: 숨긴 일반 표시 시계 복원·전경 활성화, 표시 방식 never 유지 확인. 트레이 없는 폴백에서 숨김 비활성. 핫키 선점 시 앱은 계속 실행되고 도움말은 사용 불가를 표시.
+- GitHub API 확인: yangtaeho/floating-clock private=false, Issues/Discussions=true, allow_forking=true. 기여/이슈/PR 템플릿과 라이선스 공개. PR에도 contents:read 자동 빌드 적용. 학습 저장소 private=true 유지.
+- 기능·라이선스 전달 커밋 e8541a10091744fd97e30438cfb682c0edfa287c. GitHub Actions 37773517157: Windows x64/macOS arm64/macOS x64 세 작업 success. 각 호스트 로직 29개·네이티브 패키징·실제 번들 실행·정보창/아이콘/1.1.0/WAV 검사 통과. Mac LSUIElement/Info.plist 및 DMG 검증, 두 Mac 한국어 도움말 이미지 직접 확인.
+- 로컬 Windows build_app.py 및 package_release.py 성공: PE 버전 1.1.0·아이콘, 실제 EXE visible, 185×56 논리픽셀(기본 포맷), Qt Tool, 트레이 visible, About/아이콘/시보 Ready. 기존 사용자 설정을 임시 경로로 격리해 검증. ZIP과 DMG에 프로젝트 LICENSE 및 Python/PySide6/Qt 라이선스·외부 안내 포함.
+- 공개 정식 배포: https://github.com/yangtaeho/floating-clock/releases/tag/v1.1.0 . 태그 대상은 위 기능 커밋. Windows ZIP, Mac arm64/x64 DMG, 각 SHA-256 파일 총 6개. GitHub 자산 digest와 로컬 SHA-256 일치 확인.
+- Windows ZIP SHA-256: 6e42f18161adb70aaf69e880ba1f49f30c3e0e02ffb7299cf375eb5aa19c29bb (58,732,158 bytes).
+- macOS arm64 DMG SHA-256: b01c2a62aeffc739ebec0a1ab222c00bc6f04d25345cee50ecf7cbccc87ac1f2 (53,178,619 bytes).
+- macOS x64 DMG SHA-256: 0cce822b78fe2234e8fde062b39ab2fa9ca4c8bf64dfe0febbc0b82b3385f306 (58,549,641 bytes).
+- 기존 v1.0.0 바이너리/체크섬은 그대로 두고 FloatingClock-license-notices.zip만 추가 제공하여 공개 배포의 이용 조건·외부 원문에 접근 가능하게 함.
+- 한계: 실제 UHD 연결/분리·모든 DPI 구성·Mac 실기기 메뉴 막대/전경/음향/이전 OS는 미검증. Mac offscreen CI의 tray=false는 일반 창 폴백 검사이며 실기기 트레이 부재를 의미하지 않음. Apple 개발자 서명/공증 없음. 청감은 사용자 수용 사항. 배포 크기 축소는 계획 R011 그대로 유지.
+- Git 전달: 소스·원본 자산·문서·검증 이미지만 추적. 사용자 설정/빌드/환경/인증 제외, 확인된 로컬 작성자와 canonical origin 사용, 전역 설정 변경 없음. 완료 기록은 후속 문서 커밋에 전달한다.
+
 ## R011 — 다음 버전: 독립 실행 배포판 용량 축소
 
 요청일: 2026-10-08. 상태: **planned (다음 버전으로 유예)**.
