@@ -486,10 +486,26 @@ Windows 구현·검증과 공개/배포 전달 완료. 회사 Windows 독립 실
 
 ## R018 — ARM Mac 실기기 실행 확인과 설정 패널 깜빡임 개선
 
-요청일: 2026-10-08. 상태: **implementing**.
+요청일: 2026-10-08. 상태: **verified (Windows 실제 Qt 및 Mac CI 범위 / ARM Mac 깜빡임 재수용 대기)**.
 
 사용자 보고: v1.2.1 ARM Mac이 안내대로 실행되고 잘 동작함을 확인. 설정 창·셀렉트 박스의 흔들림과 오른쪽 스크롤바 깜빡임은 남아 있음. 실행 성공만 실기기 검증으로 추가하며 모든 개별 기능의 수용으로 확대하지 않는다.
 
 설계: v1.2.2 유지보수 배포. 설정 변경 시 테마가 같으면 스타일/팔레트 재적용을 피하고 바뀐 값만 동기화. 드롭다운의 테마는 화면에 보이기 전에 적용하여 표시 직후 재배치·재도장을 제거. 설정 시각 미리보기의 글자 폭 변화가 패널 크기 계산으로 전달되지 않도록 크기 정책 고정. 패널 공간 부족 여부로 스크롤바 공간을 미리 결정하고 Mac 자동 숨김/오버레이 전환을 피한다. 타이머·설정 변경·열린 목록·스크롤·테마 전환 동안 창/목록/스크롤바 위치와 크기·포커스·스타일 재적용 여부를 검사한다.
 
 영향: settings_panel.py, smoke_ui.py 및 플랫폼 공통 설정 패널 회귀 검사, app_metadata.py, README/누적 기록. 수용: Windows 실제 Qt와 Mac CI에서 미리보기 반복 갱신·설정 변경·열린 선택 목록·작은 화면 스크롤 중 기하 상태 유지, 기존 360개 UI 조합·소리·독립 실행 회귀 통과. Windows/ARM·Intel Mac 배포와 체크섬 GitHub 전달 및 tools 갱신. ARM Mac 실제 깜빡임 해소는 새 배포판 사용자 재확인 범위.
+
+
+### R018 검증·배포 결과
+
+- 사용자의 ARM Mac v1.2.1 실행 성공을 확인된 실기기 보고로 추가. 세부 동작 전체 통과나 깜빡임 해소로 확대하지 않음.
+- 설정 테마가 같으면 전체 QSS와 콤보 팔레트를 재적용하지 않도록 변경. RoundedWindow도 같은 색상의 재적용을 생략하여 부모 창 갱신이 설정 컨트롤을 다시 스타일링하지 않음. 목록 배경은 showPopup 전에 적용. 미리보기 QLabel은 가로 Ignored/세로 Fixed로 글자 폭에 따른 sizeHint 변화를 차단. 패널 공간 기준 AlwaysOn/AlwaysOff 스크롤바와 별도 Fusion proxy의 SH_ScrollBar_Transient=0 적용.
+- `python -m unittest -q`: 35개 통과. `smoke_ui.py --capture`: Windows 실제 Qt 360개 조합·경계 알파·포커스/목록/메뉴/종료·키·트레이 검사 통과. 기존 툴팁 검사에서 QTest의 native popup 이후 Enter 누락이 발생하여 해당 Qt Enter를 명시 전달하도록 검사 안정화; 실제 렌더링/위치와 커서 이탈 제거 검사는 유지. 설정 오로라 이미지를 직접 확인.
+- 신규 `smoke_settings.py`: Windows 실제 Qt와 Mac arm64/x64 offscreen CI 모두 세 테마 × 420/1600 논리픽셀 작업 영역, 미리보기 90회/조합(총 540회), 설정 변경, 열린 목록 30회 갱신, 1.1초 타이머/스크롤 위치 유지 통과. 전체 패널·콤보·스크롤바의 비테마 StyleChange=0, 창/본문/뷰포트/콤보/열린 목록의 기하 상태 유지와 자동 숨김 비활성 확인. Mac 물리 화면 깜빡임 검사로 주장하지 않음.
+- 전달 소스 커밋 48f068ccade6f2b0b94195bbf0f64700543c61a5. GitHub Actions 37783899621 Windows x64/Mac arm64/Mac x64 세 작업 success. 위 설정 검사와 로직 검사, 각 호스트 네이티브 빌드·번들 실행·버전/아이콘/About/시보 Ready→시작→종료·경량화 기준 통과.
+- 공개 릴리스 https://github.com/yangtaeho/floating-clock/releases/tag/v1.2.2 . 해당 소스 커밋 대상으로 3종 배포·각 SHA-256 파일 총 6개 업로드, 바이너리 GitHub digest와 로컬 SHA-256 일치 확인 후 정식 발행.
+- Windows ZIP 31,578,145 bytes, SHA-256 1674f5793bf09615412b2c5863c5cb4feff366b1cbb6c6beb0984b04ff1ee587.
+- ARM Mac DMG 33,895,711 bytes, SHA-256 b4404acc9f067aece1b486ea03c482f49e8863acbea8ed7c2de19dc863ba4cb8.
+- Intel Mac DMG 36,627,745 bytes, SHA-256 586ff69108f775919b8a7601c9a75ac0116b2f52d0ecaf56e5f60c4b81886d71.
+- tools 기존 1.2.1 EXE/바로가기/설정 백업: C:/dev/tools/backups/FloatingClock-1.2.1-20261008-221720 . 종료 확인 자동 입력과 Windows 접근성 Close/Invoke 시도는 종료하지 못함. 정확한 C:/dev/tools/FloatingClock.exe 경로로 확인된 프로세스만 업데이트 범위에서 중지하고 교체 직전 설정도 추가 백업. 설정과 .lnk 해시 보존, 릴리스 EXE와 해시 일치.
+- tools 설치 EXE 1.2.2, 31,820,847 bytes, SHA-256 e5746ad51158478ed63107b887ba9aba9d1124e0dc57fde0010297a6efc67f3a. 격리 환경 --verify-audio로 ID/트레이/About/실제 시보 종료 확인 후 사용자 환경으로 실행. 실제 시계 창 하나 visible, 재실행 exit=0/동일 HWND 17108968 유지 확인.
+- 기존 v1.2.1 자산을 덮어쓰지 않고 별도 v1.2.2로 전달. 사용자 설정/환경/빌드/설치 파일·백업은 Git 제외. 기존 Mac 서명·공증/실기기 음향·UHD/DPI·전경 수용 한계는 유지. ARM Mac 새 설정 창 깜빡임 해소는 사용자 재확인 필요.
