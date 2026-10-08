@@ -3,7 +3,7 @@ import sys
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont, QPixmap, QKeySequence, QShortcut
 from PySide6.QtWidgets import QLabel, QVBoxLayout, QHBoxLayout
-from app_metadata import APP_NAME, VERSION, AUTHOR, ASSETS
+from app_metadata import APP_NAME, VERSION, AUTHOR, ASSETS, GITHUB_URL
 from ui_components import RoundedWindow, button
 
 
@@ -36,15 +36,21 @@ class AboutPanel(RoundedWindow):
         layout.addWidget(summary)
         settings_key = "Cmd+," if sys.platform == "darwin" else "Ctrl+,"
         tray_name = "메뉴 막대 아이콘" if sys.platform == "darwin" else "트레이 아이콘"
+        recovery_key = ("Ctrl+Alt+C  다른 앱에서도 시계 앞으로 가져오기\n" if app.hotkey.registered else
+                        "Ctrl+Alt+C  사용 불가 (다른 앱이 사용 중) · 트레이로 복원\n") if sys.platform == 'win32' else ''
         help_text = QLabel(
             "시계를 드래그하면 위치를 옮길 수 있습니다.\n"
             "우클릭 메뉴에서 표시와 설정을 바꿀 수 있습니다.\n"
             "매 정각 짧게 두 번 울립니다. 설정에서 끌 수 있습니다.\n\n"
             f"{settings_key}  설정 열기 / 닫기\n"
             "F1  프로그램 정보와 사용법\n"
-            "Esc  열린 메뉴 / 패널 닫기 · 시계만 있으면 종료\n"
-            "Ctrl+Q  프로그램 종료\n"
-            f"{tray_name}  시계 표시 / 숨김 · 설정 · 종료\n\n"
+            "Esc  열린 메뉴 / 패널 닫기 · 시계만 있으면 종료 확인\n"
+            "Ctrl+Q  프로그램 종료 확인\n"
+            + recovery_key +
+            f"{tray_name} 클릭  숨김 / 일반 표시 시계를 앞으로 가져오기\n"
+            "아이콘: 설정 · 도움말 · 트레이로 숨기기 · 종료\n"
+            "작은 시계에는 숨기기 · 종료 아이콘이 있습니다.\n"
+            "모니터 연결이 바뀌면 보이는 화면 안으로 자동 이동합니다.\n\n"
             "인터넷 연결 없이 동작하며 외부로 데이터를 보내지 않습니다.\n"
             "설정은 이 기기에 저장됩니다."
         )
@@ -52,6 +58,15 @@ class AboutPanel(RoundedWindow):
         help_text.setTextInteractionFlags(Qt.TextSelectableByMouse)
         layout.addWidget(help_text)
         self.muted = [self.version_label, help_text]
+        self.github_link = QLabel(f'<a href="{GITHUB_URL}">GitHub · 소스와 다운로드</a> &nbsp; '
+                                  f'<a href="{GITHUB_URL}/issues">버그 신고 · 기능 제안</a>')
+        self.github_link.setTextInteractionFlags(Qt.TextBrowserInteraction)
+        self.github_link.setOpenExternalLinks(True)
+        layout.addWidget(self.github_link)
+        license_label = QLabel('비상업적 사용·수정·배포 가능 · PolyForm Noncommercial 1.0.0')
+        license_label.setWordWrap(True)
+        layout.addWidget(license_label)
+        self.muted.append(license_label)
         footer = QHBoxLayout()
         footer.addStretch()
         self.close_button = button("닫기", self.close, self)

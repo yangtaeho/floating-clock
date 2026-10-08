@@ -40,7 +40,7 @@ def run():
             app.tick()
             app.tick()
             play.assert_called_once()
-        app.close()
+        app.shutdown()
         qt.processEvents()
         print("PASS: Qt audio Ready, preview started and finished, focus preserved, hourly timer played once")
 

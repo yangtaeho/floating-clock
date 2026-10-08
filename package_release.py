@@ -11,7 +11,29 @@ import sys
 import tempfile
 import zipfile
 import plistlib
+from importlib.metadata import distribution
 from app_metadata import VERSION, BUNDLE_ID
+
+
+def license_files(root):
+    """Include project terms and runtime notices with every standalone download."""
+    files = [(root / name, name) for name in ('LICENSE', 'THIRD_PARTY_NOTICES.md')]
+    python_license = Path(sys.base_prefix) / 'LICENSE.txt'
+    if not python_license.is_file():
+        python_license = Path(sys.base_prefix) / 'LICENSE'
+    if python_license.is_file():
+        files.append((python_license, 'third-party-licenses/Python-LICENSE.txt'))
+    else:
+        files.append((root/'assets/legal/Python-LICENSE.txt', 'third-party-licenses/Python-LICENSE.txt'))
+    for package in ('PySide6', 'PySide6_Essentials', 'PySide6_Addons', 'shiboken6'):
+        dist = distribution(package)
+        for file in dist.files or []:
+            if '/licenses/' in str(file):
+                path = Path(dist.locate_file(file))
+                if path.is_file():
+                    files.append((path, f'third-party-licenses/{package}/{path.name}'))
+    files.extend((path, f'third-party-licenses/Qt/{path.name}') for path in (root/'assets/legal').glob('*.txt') if path.name != 'Python-LICENSE.txt')
+    return files
 
 
 def main():
@@ -58,6 +80,7 @@ def main():
     # CI machines may have no audio output device; don't claim audible playback.
     output = root / 'release'
     output.mkdir(exist_ok=True)
+    notices = license_files(root)
     instructions = ('Windows: unzip and open FloatingClock.exe. No Python installation required.\n'
                     'macOS: open the DMG and drag FloatingClock.app to Applications.\n'
                     'Use arm64 for Apple Silicon or x64 for Intel. Built on macOS 15.\n'
@@ -69,6 +92,10 @@ def main():
             subprocess.run(['ditto', str(root/'dist/FloatingClock.app'), str(staging/'FloatingClock.app')], check=True)
             (staging/'Applications').symlink_to('/Applications')
             (staging/'READ-ME.txt').write_text(instructions, encoding='utf-8')
+            for source, name in notices:
+                destination = staging / name
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(source, destination)
             archive = output / f'FloatingClock-{args.platform}.dmg'
             subprocess.run(['hdiutil', 'create', '-volname', 'FloatingClock', '-srcfolder', str(staging), '-ov', '-format', 'UDZO', str(archive)], check=True)
             subprocess.run(['hdiutil', 'verify', str(archive)], check=True)
@@ -77,6 +104,8 @@ def main():
         with zipfile.ZipFile(archive, 'w', zipfile.ZIP_DEFLATED) as bundle:
             bundle.write(executable, 'FloatingClock.exe')
             bundle.writestr('READ-ME.txt', instructions)
+            for source, name in notices:
+                bundle.write(source, name)
     digest = hashlib.sha256(archive.read_bytes()).hexdigest()
     (output / f'{archive.name}.sha256').write_text(f'{digest}  {archive.name}\n', encoding='utf-8')
     print(f'Verified and packaged: {archive.name} sha256={digest}')

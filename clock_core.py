@@ -98,3 +98,29 @@ def should_be_topmost(mode: TopmostMode, auto_hide: bool | None) -> bool:
 def next_tick_ms(now: datetime) -> int:
     """Align to wall-clock seconds, without accumulating timer drift."""
     return max(20, 1000 - now.microsecond // 1000)
+
+
+@dataclass(frozen=True)
+class ScreenArea:
+    """Logical-pixel available area; right/bottom are exclusive."""
+    x: int
+    y: int
+    width: int
+    height: int
+
+
+def visible_position(x, y, width, height, screens):
+    """Keep a valid monitor position; recover to the closest available area."""
+    if not screens:
+        return x, y
+    def overlap(area):
+        return (max(0, min(x + width, area.x + area.width) - max(x, area.x)) *
+                max(0, min(y + height, area.y + area.height) - max(y, area.y)))
+    def clamped(area):
+        return (max(area.x, min(x, area.x + max(0, area.width - width))),
+                max(area.y, min(y, area.y + max(0, area.height - height))))
+    def distance(area):
+        nx, ny = clamped(area)
+        return (nx - x) ** 2 + (ny - y) ** 2
+    area = max(screens, key=lambda area: (overlap(area), -distance(area)))
+    return clamped(area)

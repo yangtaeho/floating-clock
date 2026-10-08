@@ -39,14 +39,16 @@ class HourlyChime:
 
 
 def write_chime(path):
-    """Write two 80ms sine tones at 4096Hz with a 70ms quiet gap, PCM16 mono."""
-    rate, length, gap = 44100, 0.080, 0.070
+    """Two complete 120ms tones, gentle release and quiet playback tail, PCM16 mono."""
+    rate, length, gap = 44100, 0.120, 0.070
     count = round(rate * length)
     tone = []
     for index in range(count):
-        edge = min(1.0, index / (rate * 0.003), (count - 1 - index) / (rate * 0.003))
+        attack = min(1.0, index / (rate * 0.003))
+        release = min(1.0, (count - 1 - index) / (rate * 0.012))
+        edge = attack * (0.5 - 0.5 * math.cos(math.pi * release))
         tone.append(round(32767 * 0.45 * edge * math.sin(2 * math.pi * 4096 * index / rate)))
-    samples = tone + [0] * round(rate * gap) + tone
+    samples = tone + [0] * round(rate * gap) + tone + [0] * round(rate * 0.050)
     with wave.open(str(path), "wb") as output:
         output.setnchannels(1)
         output.setsampwidth(2)

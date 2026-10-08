@@ -75,14 +75,20 @@ class ChimeTests(unittest.TestCase):
         with wave.open(str(Path(__file__).parent / "assets/hourly-chime.wav")) as sound:
             self.assertEqual((sound.getnchannels(), sound.getsampwidth(), sound.getframerate()), (1, 2, 44100))
             samples = struct.unpack(f"<{sound.getnframes()}h", sound.readframes(sound.getnframes()))
-        tone, gap = round(44100 * .080), round(44100 * .070)
-        self.assertEqual(len(samples), tone * 2 + gap)
-        self.assertEqual(samples[:tone], samples[tone + gap:])
+        tone, gap = round(44100 * .120), round(44100 * .070)
+        self.assertEqual(len(samples), tone * 2 + gap + round(44100 * .050))
+        self.assertEqual(samples[:tone], samples[tone + gap:tone * 2 + gap])
         self.assertTrue(all(value == 0 for value in samples[tone:tone + gap]))
         self.assertGreater(max(samples), 10000)
+        self.assertEqual(samples[0], 0)
+        self.assertEqual(samples[tone - 1], 0)
+        self.assertTrue(all(value == 0 for value in samples[tone * 2 + gap:]))
+        # Final 3ms release is quieter than the sustained body, not abruptly cut.
+        tail = samples[tone - round(44100 * .003):tone]
+        self.assertLess(max(abs(value) for value in tail), 3000)
         # Count rising zero crossings to verify the high watch-like tone.
         crossings = sum(a <= 0 < b for a, b in zip(samples[:tone-1], samples[1:tone]))
-        self.assertAlmostEqual(crossings / .080, 4096, delta=20)
+        self.assertAlmostEqual(crossings / .120, 4096, delta=20)
 
 
 if __name__ == "__main__":

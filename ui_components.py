@@ -1,7 +1,7 @@
 """Qt surfaces: one antialiased boundary, shared theme, stable controls."""
-from PySide6.QtCore import Qt, QRectF
-from PySide6.QtGui import QColor, QPainter, QPen, QKeySequence, QShortcut
-from PySide6.QtWidgets import QWidget, QPushButton, QVBoxLayout
+from PySide6.QtCore import Qt, QRectF, QEvent, QPointF
+from PySide6.QtGui import QColor, QPainter, QPen, QKeySequence, QShortcut, QPolygonF, QFont
+from PySide6.QtWidgets import QWidget, QPushButton, QVBoxLayout, QApplication
 
 THEMES = {
     "light": {"bg": "#F8FAFC", "fg": "#172538", "muted": "#718094", "subtle": "#9AA7B7",
@@ -68,6 +68,59 @@ def button(text, callback, parent=None):
     return control
 
 
+class IconButton(QPushButton):
+    """Consistent drawn icons, independent of symbol fonts and platform glyphs."""
+    def __init__(self, kind, label, callback, parent):
+        super().__init__(parent)
+        self.kind = kind
+        self.setFixedSize(24, 24)
+        self.setToolTip(label)
+        self.setAccessibleName(label)
+        self.setCursor(Qt.PointingHandCursor)
+        self.clicked.connect(callback)
+
+    def paintEvent(self, event):
+        import math
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        colors = self.window().colors
+        if self.underMouse() or self.hasFocus():
+            painter.setPen(Qt.NoPen)
+            painter.setBrush(QColor(colors['hover']))
+            painter.drawRoundedRect(QRectF(1, 1, self.width()-2, self.height()-2), 6, 6)
+        painter.translate(self.width()/2, self.height()/2)
+        painter.setPen(QPen(QColor(colors['muted'] if self.isEnabled() else colors['subtle']), 1.5,
+                            Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+        painter.setBrush(Qt.NoBrush)
+        if self.kind == 'close':
+            painter.drawLine(QPointF(-4,-4), QPointF(4,4))
+            painter.drawLine(QPointF(-4,4), QPointF(4,-4))
+        elif self.kind == 'hide':
+            painter.drawLine(QPointF(-5,5), QPointF(5,5))
+            painter.drawLine(QPointF(0,-5), QPointF(0,1))
+            painter.drawPolyline(QPolygonF([QPointF(-3,-1),QPointF(0,2),QPointF(3,-1)]))
+        elif self.kind == 'help':
+            painter.drawEllipse(QRectF(-7,-7,14,14))
+            painter.setFont(QFont('Segoe UI', 9, QFont.Bold))
+            painter.drawText(QRectF(-7,-8,14,16), Qt.AlignCenter, '?')
+        else:
+            points = []
+            for i in range(32):
+                radius = 7 if i % 4 in (1,2) else 5.4
+                angle = math.pi * 2 * i / 32
+                points.append(QPointF(radius * math.cos(angle), radius * math.sin(angle)))
+            painter.drawPolygon(QPolygonF(points))
+            painter.drawEllipse(QRectF(-2.3,-2.3,4.6,4.6))
+
+    def enterEvent(self, event):
+        self.update()
+        super().enterEvent(event)
+
+    def leaveEvent(self, event):
+        self.update()
+        super().leaveEvent(event)
+
+
 class ContextPopup(RoundedWindow):
     def __init__(self, app, position):
         super().__init__(app.root, Qt.Popup | Qt.FramelessWindowHint | Qt.NoDropShadowWindowHint, radius=12)
@@ -88,7 +141,8 @@ class ContextPopup(RoundedWindow):
              lambda: app.set_preference("hour_cycle", 24 if preferences.hour_cycle == 12 else 12)),
             ("초 숨기기" if preferences.show_seconds else "초 표시",
              lambda: app.set_preference("show_seconds", not preferences.show_seconds)),
-            ("위치 초기화", app.reset_position), ("프로그램 정보…                 F1", app.show_about), ("종료                             Ctrl+Q", app.close),
+            ("트레이로 숨기기", app.hide_clock), ("위치 초기화", app.reset_position),
+            ("프로그램 정보…                 F1", app.show_about), ("종료                             Ctrl+Q", app.close),
         ]
         self.buttons = []
         for index, (text, callback) in enumerate(choices):
@@ -96,6 +150,8 @@ class ContextPopup(RoundedWindow):
             control.setStyleSheet("text-align: left; padding: 7px 12px;")
             layout.addWidget(control)
             self.buttons.append(control)
+            if text == '트레이로 숨기기':
+                control.setEnabled(app.tray_available)
             if index == 4:
                 layout.addSpacing(6)
         self.index = 0
@@ -112,7 +168,22 @@ class ContextPopup(RoundedWindow):
             shortcut.activated.connect(callback)
             self.shortcuts.append(shortcut)
         self.show()
+        QApplication.instance().installEventFilter(self)
         self.buttons[0].setFocus()
+
+    def eventFilter(self, watched, event):
+        if event.type() == QEvent.MouseButtonPress and hasattr(event, 'globalPosition'):
+            if not self.frameGeometry().contains(event.globalPosition().toPoint()):
+                self.close()
+        return False
+
+    def hideEvent(self, event):
+        # Qt.Popup automatically hides on an outside click, without closeEvent.
+        if self.app.popup_menu is self:
+            self.app.popup_menu = None
+        QApplication.instance().removeEventFilter(self)
+        super().hideEvent(event)
+        self.deleteLater()
 
     def navigate(self, delta):
         self.index = (self.index + delta) % len(self.buttons)

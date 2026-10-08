@@ -2,6 +2,7 @@
 import ctypes
 import sys
 from ctypes import wintypes
+from PySide6.QtCore import QAbstractNativeEventFilter
 
 
 class RECT(ctypes.Structure):
@@ -62,3 +63,37 @@ class WindowChrome:
             return None
         # HWND_TOPMOST/-NOTOPMOST; NOMOVE | NOSIZE | NOACTIVATE.
         return bool(self.user32.SetWindowPos(handle, wintypes.HWND(-1 if enabled else -2), 0, 0, 0, 0, 0x0013))
+
+
+class RecoveryHotkey(QAbstractNativeEventFilter):
+    """Windows Ctrl+Alt+C works while the clock is hidden or another app is active."""
+    HOTKEY_ID = 0x4FC1
+
+    def __init__(self, application, callback):
+        super().__init__()
+        self.application, self.callback = application, callback
+        self.registered = False
+        if sys.platform == 'win32':
+            self.user32 = ctypes.WinDLL('user32', use_last_error=True)
+            self.user32.RegisterHotKey.argtypes = [wintypes.HWND, ctypes.c_int, wintypes.UINT, wintypes.UINT]
+            self.user32.RegisterHotKey.restype = wintypes.BOOL
+            self.user32.UnregisterHotKey.argtypes = [wintypes.HWND, ctypes.c_int]
+            self.user32.UnregisterHotKey.restype = wintypes.BOOL
+            # MOD_NOREPEAT | MOD_CONTROL | MOD_ALT, C.
+            self.registered = bool(self.user32.RegisterHotKey(None, self.HOTKEY_ID, 0x4003, 0x43))
+            if self.registered:
+                application.installNativeEventFilter(self)
+
+    def nativeEventFilter(self, event_type, message):
+        if self.registered and event_type in (b'windows_generic_MSG', b'windows_dispatcher_MSG'):
+            msg = wintypes.MSG.from_address(int(message))
+            if msg.message == 0x0312 and msg.wParam == self.HOTKEY_ID:
+                self.callback()
+                return True, 0
+        return False, 0
+
+    def close(self):
+        if self.registered:
+            self.application.removeNativeEventFilter(self)
+            self.user32.UnregisterHotKey(None, self.HOTKEY_ID)
+            self.registered = False

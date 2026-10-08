@@ -17,6 +17,8 @@
 - `chime_core.py`: 플랫폼 독립 정각 판정·원본 WAV 생성. `chime_audio.py`: 공통 Qt 비동기 재생 어댑터. 시보 변경은 절전·시각 변경·중복과 실제 재생을 검증한다.
 - `main.py`, `ui_components.py`, `settings_panel.py`: PySide6(Qt) UI와 상호작용. R003부터 Tk UI를 대체한다.
 - `app_metadata.py`: 제품명·버전·작성자 기준. `about_panel.py`: 정보/도움말. `tray_adapter.py`: 시스템 트레이 및 메뉴 막대.
+- R010부터 v1.1.0: 다중 화면 작업 영역 복구·전역 복원·확인 후 종료. 화면 좌표 정책은 clock_core의 ScreenArea/visible_position으로 플랫폼 독립 유지. 사용자 종료 경로는 close 확인창을 사용하고 빌드 검사·자동화의 정리는 shutdown을 사용한다.
+- 공개 저장소의 직접 작성한 코드·자산은 PolyForm Noncommercial 1.0.0. 외부 구성 요소의 원래 라이선스는 별도 유지하며 배포판에 LICENSE/THIRD_PARTY_NOTICES와 원문을 포함한다.
 - 배포 변경 시 아이콘, Windows PE 버전, Mac Info.plist, 정보창, 트레이 없는 폴백과 숨김/복원/종료를 확인한다. Mac offscreen CI와 실기기 UI/오디오 검증은 구분한다.
 - Python 외부 의존성은 실행에 필수인 경우에만 추가한다. 빌드 도구는 프로젝트 `.venv`에 둔다.
 - 기능 변경은 관련 로직 테스트와 실제 Qt 창 검증을 수행한다. UI 변경은 작은/큰 크기, 밝은/어두운 테마의 잘림·경계 알파·설정창 포커스를 확인한다.

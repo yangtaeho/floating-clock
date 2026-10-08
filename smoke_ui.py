@@ -213,7 +213,7 @@ def run(capture=False):
             qt.processEvents()
             assert fallback.tray is None and fallback.root.windowType() == Qt.Window
             assert fallback.root.isVisible()
-            fallback.close()
+            fallback.shutdown()
         if capture:
             folder = Path("previews")
             folder.mkdir(exist_ok=True)
@@ -233,6 +233,80 @@ def run(capture=False):
             app.restore_defaults()
             qt.processEvents()
             app.root.grab().save("preview.png")
+        # New recovery, content sizing and every exit confirmation route.
+        app.settings_panel and app.settings_panel.close()
+        app.about_panel and app.about_panel.close()
+        app.restore_defaults()
+        app.set_preference('hour_cycle', 24)
+        app.set_preference('date_preset', 'slash')
+        app.set_preference('show_seconds', False)
+        narrow = app.root.width()
+        app.set_preference('time_preset', 'korean')
+        app.set_preference('show_seconds', True)
+        assert app.root.width() > narrow, 'Formats did not change width'
+        app.root.move(-10000, 10000)
+        app.display_signature = None
+        app.check_displays()
+        bounds = app.root.screen().availableGeometry()
+        assert bounds.contains(app.root.geometry()), 'Display recovery left clock outside'
+        assert save.call_args.args[0]['x'] == app.root.x()
+        app.set_preference('mode', 'never')
+        if app.tray:
+            QTest.mouseClick(app.hide_button, Qt.LeftButton)
+            assert not app.root.isVisible() and app.tick_timer.isActive()
+            app.tray.restore.trigger()
+            qt.processEvents()
+            assert app.root.isVisible() and not app.topmost
+            app.hide_clock()
+            if app.hotkey.registered:
+                user = ctypes.WinDLL('user32')
+                for key in (0x11, 0x12, 0x43):
+                    user.keybd_event(key, 0, 0, 0)
+                for key in (0x43, 0x12, 0x11):
+                    user.keybd_event(key, 0, 2, 0)
+                QTest.qWait(150)
+                assert app.root.isVisible(), 'Native global hotkey did not restore hidden clock'
+            app.show_clock()
+        # Actual mouse presses outside popup must clear its lifetime reference.
+        app.popup(QPoint(100, 100))
+        qt.processEvents()
+        QTest.mouseClick(app.root, Qt.LeftButton, pos=QPoint(12, 35))
+        qt.processEvents()
+        assert app.popup_menu is None
+        from PySide6.QtWidgets import QWidget, QMessageBox
+        outside = QWidget()
+        outside.show()
+        app.popup(QPoint(100, 100))
+        qt.processEvents()
+        QTest.mouseClick(outside, Qt.LeftButton)
+        qt.processEvents()
+        assert app.popup_menu is None
+        outside.close()
+        for invoke in (app.close_button.click, app.root.close, app.close, app.escape,
+                       app.tray.quit.trigger if app.tray else app.close):
+            invoke()
+            qt.processEvents()
+            dialog = app.exit_dialog
+            assert dialog and dialog.isVisible() and not app.closing
+            app.close()
+            assert app.exit_dialog is dialog, 'Repeated exit created duplicate dialog'
+            assert dialog.defaultButton().text() == '취소'
+            QTest.mouseClick(dialog.defaultButton(), Qt.LeftButton)
+            qt.processEvents()
+            assert app.exit_dialog is None and app.poll_timer.isActive() and not app.closing
+        app.root.activateWindow()
+        QTest.qWait(100)
+        QTest.keyClick(app.root, Qt.Key_Q, Qt.ControlModifier)
+        qt.processEvents()
+        assert app.exit_dialog
+        if capture:
+            app.exit_dialog.grab().save('previews/exit-confirmation.png')
+        app.exit_dialog.reject()
+        qt.processEvents()
+        app.show_about()
+        assert 'https://github.com/yangtaeho/floating-clock' in app.about_panel.github_link.text()
+        app.about_panel.close()
+        app.restore_defaults()
         first = app.time_label.text()
         QTest.qWait(1300)
         assert app.time_label.text() != first
@@ -241,6 +315,10 @@ def run(capture=False):
             app.tray.quit.trigger()
         else:
             app.close()
+        qt.processEvents()
+        assert app.exit_dialog and not app.closing
+        dialog = app.exit_dialog
+        next(b for b in dialog.buttons() if dialog.buttonRole(b) == QMessageBox.AcceptRole).click()
         qt.processEvents()
         assert app.closing
         assert app.tray is None or not app.tray.icon.isVisible()

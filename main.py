@@ -6,12 +6,12 @@ from time import monotonic
 
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QFont, QFontMetrics, QKeySequence, QShortcut, QIcon
-from PySide6.QtWidgets import QApplication, QLabel, QVBoxLayout, QHBoxLayout
+from PySide6.QtWidgets import QApplication, QLabel, QVBoxLayout, QHBoxLayout, QMessageBox
 
-from clock_core import ClockPreferences, TopmostMode, format_clock, next_tick_ms, should_be_topmost
-from platform_adapter import TaskbarMonitor, WindowChrome
+from clock_core import ClockPreferences, TopmostMode, format_clock, next_tick_ms, should_be_topmost, ScreenArea, visible_position
+from platform_adapter import TaskbarMonitor, WindowChrome, RecoveryHotkey
 from settings import load_preferences, load_settings, save_settings
-from ui_components import THEMES, RoundedWindow, ContextPopup, button
+from ui_components import THEMES, RoundedWindow, ContextPopup, IconButton
 from settings_panel import SettingsPanel
 from chime_core import HourlyChime
 from chime_audio import ChimeAudio
@@ -31,11 +31,15 @@ class ClockWindow(RoundedWindow):
 
     def mouseReleaseEvent(self, event):
         super().mouseReleaseEvent(event)
+        self.controller.clamp_position()
         self.controller.persist()
 
     def closeEvent(self, event):
-        self.controller.shutdown()
-        event.accept()
+        if self.controller.closing:
+            event.accept()
+        else:
+            event.ignore()
+            self.controller.close()
 
 
 class ClockApp:
@@ -52,6 +56,9 @@ class ClockApp:
         self.popup_menu = None
         self.settings_panel = None
         self.about_panel = None
+        self.exit_dialog = None
+        self.display_signature = None
+        self.watched_screens = set()
         self.tray_available = TrayAdapter.available()
         self.utility_flags = (Qt.Tool if self.tray_available else Qt.Window) | Qt.FramelessWindowHint | Qt.NoDropShadowWindowHint
         self.tray = None
@@ -67,12 +74,15 @@ class ClockApp:
         self.header_label.setFont(QFont("Segoe UI", 9, QFont.Bold))
         self.header.addWidget(self.header_label)
         self.header.addStretch()
-        self.settings_button = button("설정", self.toggle_settings, self.root)
-        self.header.addWidget(self.settings_button)
-        # Compact close button is laid out over the right margin, not a title row.
-        self.close_button = button("×", self.close, self.root)
-        self.close_button.setFixedSize(22, 22)
-        self.close_button.setFont(QFont("Segoe UI", 12))
+        self.settings_button = IconButton('settings', '설정 (Ctrl+,)', self.toggle_settings, self.root)
+        self.help_button = IconButton('help', '프로그램 정보와 사용법 (F1)', self.show_about, self.root)
+        self.hide_button = IconButton('hide', '트레이로 숨기기', self.hide_clock, self.root)
+        self.hide_button.setEnabled(self.tray_available)
+        if not self.tray_available:
+            self.hide_button.setToolTip('이 환경에서는 시스템 트레이를 사용할 수 없습니다')
+        self.close_button = IconButton('close', '프로그램 종료 (Ctrl+Q)', self.close, self.root)
+        self.icon_buttons = [self.settings_button, self.help_button, self.hide_button, self.close_button]
+        self.header.setSpacing(2)
         layout.addLayout(self.header)
         self.time_label = QLabel()
         self.date_label = QLabel()
@@ -98,6 +108,11 @@ class ClockApp:
         self.root.show()
         if self.tray_available:
             self.tray = TrayAdapter(self)
+        application = QApplication.instance()
+        self.hotkey = RecoveryHotkey(application, self.show_clock)
+        application.screenAdded.connect(self.schedule_display_recovery)
+        application.screenRemoved.connect(self.schedule_display_recovery)
+        self.check_displays()
         self.tick_timer = QTimer(self.root)
         self.tick_timer.setSingleShot(True)
         self.tick_timer.timeout.connect(self.tick)
@@ -116,9 +131,16 @@ class ClockApp:
         self.root.apply_colors(colors)
         self.header_label.setVisible(not compact)
         self.settings_button.setVisible(not compact)
+        self.help_button.setVisible(not compact)
         self.status_label.setVisible(not compact)
+        # Only large mode uses the header; compact actions live in a side margin.
+        for control in self.icon_buttons:
+            self.header.removeWidget(control)
+        if not compact:
+            for control in self.icon_buttons:
+                self.header.addWidget(control)
         self.layout.setContentsMargins(12 if compact else 20, 6 if compact else 14,
-                                       30 if compact else 20, 7 if compact else 15)
+                                       60 if compact else 20, 7 if compact else 15)
         time_font = QFont("Malgun Gothic", 12 if compact else 30, QFont.Bold)
         date_font = QFont("Malgun Gothic", 8 if compact else 10)
         self.time_label.setFont(time_font)
@@ -127,7 +149,8 @@ class ClockApp:
         self.status_label.setFont(QFont("Malgun Gothic", 8))
         self.status_label.setStyleSheet(f"color: {colors['accent']}; padding-top: 5px;")
         self.header_label.setStyleSheet(f"color: {colors['accent']};")
-        self.close_button.setStyleSheet(f"color: {colors['subtle']}; padding: 0px;")
+        for control in self.icon_buttons:
+            control.update()
         samples = [format_clock(datetime(2088, 12, 20, hour, 58, 58) + timedelta(days=day), self.preferences)
                    for hour in range(24) for day in range(7)]
         metrics, date_metrics = QFontMetrics(time_font), QFontMetrics(date_font)
@@ -135,12 +158,20 @@ class ClockApp:
         self.render_time()
         self.layout.invalidate()
         self.layout.activate()
-        width = max(220 if compact else 340, content_width + (44 if compact else 42))
-        height = max(56 if compact else 180, self.layout.sizeHint().height())
+        left, top, right, bottom = self.layout.getContentsMargins()
+        width = content_width + left + right + 2
+        if not compact:
+            width = max(width, self.header.sizeHint().width() + left + right,
+                        QFontMetrics(self.status_label.font()).horizontalAdvance('자동 · 자동 숨김 켜짐 / 항상 위') + left + right)
+        height = max(56 if compact else 0, self.layout.sizeHint().height())
         self.root.setFixedSize(width, height)
         self.width, self.height = width, height
-        self.close_button.move(width - 27, 5 if compact else 13)
-        self.close_button.raise_()
+        if compact:
+            self.hide_button.move(width - 57, 5)
+            self.close_button.move(width - 30, 5)
+        for control in (self.hide_button, self.close_button):
+            control.show()
+            control.raise_()
         self.clamp_position()
 
     def render_time(self):
@@ -159,6 +190,7 @@ class ClockApp:
         self.tick_timer.start(next_tick_ms(now))
 
     def poll_taskbar(self):
+        self.check_displays()
         result = self.monitor.auto_hide_enabled()
         if result is not None or not self.monitor.supported:
             self.auto_hide = result
@@ -269,17 +301,67 @@ class ClockApp:
             self.close()
 
     def reset_position(self, save=True):
-        bounds = self.root.screen().availableGeometry()
+        bounds = QApplication.primaryScreen().availableGeometry()
         self.root.move(max(bounds.left(), bounds.right() - self.root.width() - 20),
                        max(bounds.top(), bounds.bottom() - self.root.height() - 16))
         if save:
             self.persist()
 
-    def clamp_position(self):
-        bounds = self.root.screen().availableGeometry()
-        x = max(bounds.left(), min(self.root.x(), bounds.right() - self.root.width() + 1))
-        y = max(bounds.top(), min(self.root.y(), bounds.bottom() - self.root.height() + 1))
-        self.root.move(x, y)
+    def clamp_position(self, window=None):
+        window = window or self.root
+        screens = [ScreenArea(r.x(), r.y(), r.width(), r.height())
+                   for screen in QApplication.screens() for r in [screen.availableGeometry()]]
+        x, y = visible_position(window.x(), window.y(), window.width(), window.height(), screens)
+        changed = (x, y) != (window.x(), window.y())
+        if changed:
+            window.move(x, y)
+        return changed
+
+    def schedule_display_recovery(self, *args):
+        if not self.closing:
+            QTimer.singleShot(100, self.check_displays)
+
+    def check_displays(self):
+        if self.closing:
+            return
+        screens = QApplication.screens()
+        for screen in screens:
+            if screen not in self.watched_screens:
+                screen.availableGeometryChanged.connect(self.schedule_display_recovery)
+                screen.geometryChanged.connect(self.schedule_display_recovery)
+                screen.logicalDotsPerInchChanged.connect(self.schedule_display_recovery)
+        self.watched_screens = set(screens)
+        signature = tuple((s.name(), s.availableGeometry().getRect(), s.logicalDotsPerInch()) for s in screens)
+        if signature != self.display_signature:
+            self.display_signature = signature
+            changed = self.clamp_position()
+            self.render_clock()
+            for panel in (self.settings_panel, self.about_panel, self.exit_dialog):
+                if panel:
+                    self.clamp_position(panel)
+            self.dismiss_popup()
+            if changed:
+                self.persist()
+
+    def show_clock(self):
+        self.clamp_position()
+        self.root.show()
+        self.apply_policy()
+        self.root.raise_()
+        self.root.activateWindow()
+        if self.tray:
+            self.tray.update_menu()
+
+    def hide_clock(self):
+        if not self.tray_available:
+            return
+        self.dismiss_popup()
+        for panel in (self.settings_panel, self.about_panel):
+            if panel:
+                panel.close()
+        self.root.hide()
+        if self.tray:
+            self.tray.update_menu()
 
     def persist(self):
         try:
@@ -296,6 +378,10 @@ class ClockApp:
         self.tick_timer.stop()
         self.poll_timer.stop()
         self.chime_audio.stop()
+        self.hotkey.close()
+        application = QApplication.instance()
+        application.screenAdded.disconnect(self.schedule_display_recovery)
+        application.screenRemoved.disconnect(self.schedule_display_recovery)
         if self.tray:
             self.tray.close()
         if self.about_panel:
@@ -304,10 +390,40 @@ class ClockApp:
         if self.settings_panel:
             self.settings_panel.close()
         self.persist()
+        self.root.close()
         QApplication.instance().quit()
 
     def close(self):
-        self.root.close()
+        if self.closing:
+            return
+        self.dismiss_popup()
+        if self.exit_dialog:
+            self.exit_dialog.raise_()
+            self.exit_dialog.activateWindow()
+            return
+        dialog = QMessageBox(self.root)
+        self.exit_dialog = dialog
+        dialog.setWindowTitle('Floating Clock 종료')
+        dialog.setIcon(QMessageBox.Question)
+        dialog.setText('Floating Clock을 종료할까요?')
+        dialog.setInformativeText('종료하면 정각 시보도 멈춥니다. 시계를 숨기려면 트레이로 숨기기를 선택하세요.')
+        quit_button = dialog.addButton('종료', QMessageBox.AcceptRole)
+        cancel_button = dialog.addButton('취소', QMessageBox.RejectRole)
+        dialog.setDefaultButton(cancel_button)
+        dialog.setEscapeButton(cancel_button)
+        dialog.setWindowModality(Qt.ApplicationModal)
+        dialog.finished.connect(lambda result: self.finish_exit(dialog, quit_button))
+        dialog.open()
+        self.clamp_position(dialog)
+        dialog.raise_()
+        dialog.activateWindow()
+
+    def finish_exit(self, dialog, quit_button):
+        confirmed = dialog.clickedButton() is quit_button
+        self.exit_dialog = None
+        dialog.deleteLater()
+        if confirmed:
+            self.shutdown()
 
 
 if __name__ == "__main__":
@@ -341,6 +457,6 @@ if __name__ == "__main__":
                 "chime_asset_exists": app.chime_audio.path.is_file(),
                 "chime_audio_status": app.chime_audio.effect.status().name
             }, ensure_ascii=False, indent=2), encoding="utf-8")
-            app.close()
+            app.shutdown()
         QTimer.singleShot(1500, verify_build)
     sys.exit(application.exec())

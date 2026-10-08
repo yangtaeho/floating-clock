@@ -12,10 +12,14 @@ class TrayAdapter:
     def __init__(self, app):
         self.app = app
         self.icon = QSystemTrayIcon(QIcon(str(ASSETS / 'icon.png')), app.root)
-        self.icon.setToolTip(f'{APP_NAME} {VERSION}')
+        self.icon.setToolTip(f'{APP_NAME} {VERSION}\n클릭: 시계 앞으로 가져오기')
         self.menu = QMenu()
+        self.restore = self.menu.addAction('시계 앞으로 가져오기')
+        self.restore.triggered.connect(self.show_clock)
         self.visibility = self.menu.addAction('시계 숨기기')
         self.visibility.triggered.connect(self.toggle_clock)
+        self.reset = self.menu.addAction('주 화면으로 위치 초기화')
+        self.reset.triggered.connect(self.reset_position)
         self.menu.addSeparator()
         self.settings = self.menu.addAction('설정…')
         self.settings.triggered.connect(self.show_settings)
@@ -33,16 +37,16 @@ class TrayAdapter:
         self.visibility.setText('시계 숨기기' if self.app.root.isVisible() else '시계 표시')
 
     def show_clock(self):
-        self.app.root.show()
-        self.app.apply_policy()
-        self.app.root.raise_()
-        self.app.root.activateWindow()
+        self.app.show_clock()
         self.update_menu()
+
+    def reset_position(self):
+        self.app.reset_position()
+        self.show_clock()
 
     def toggle_clock(self):
         if self.app.root.isVisible():
-            self.app.dismiss_popup()
-            self.app.root.hide()
+            self.app.hide_clock()
         else:
             self.show_clock()
         self.update_menu()
